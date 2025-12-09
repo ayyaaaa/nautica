@@ -19,7 +19,9 @@ const dirname = path.dirname(filename)
 export default buildConfig({
   admin: {
     user: Users.slug,
-    // VERCEL FIX: Remove complex importMaps for now unless specifically needed
+    importMap: {
+      baseDir: path.resolve(dirname),
+    },
   },
   collections: [Users, Media, Businesses, Vessels, Berths, ServiceRequests, Payments],
   editor: lexicalEditor(),
@@ -29,7 +31,6 @@ export default buildConfig({
   },
   db: postgresAdapter({
     pool: {
-      // CRITICAL: This must be a cloud database string (Neon, Supabase, etc.)
       connectionString: process.env.DATABASE_URI || '',
     },
   }),
