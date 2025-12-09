@@ -12,6 +12,7 @@ import { Vessels } from './collections/Vessels'
 import { Berths } from './collections/Berths'
 import { ServiceRequests } from './collections/ServiceRequests'
 import { Payments } from './collections/Payments'
+import { SiteSettings } from './collections/SiteSettings'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -24,6 +25,7 @@ export default buildConfig({
     },
   },
   collections: [Users, Media, Businesses, Vessels, Berths, ServiceRequests, Payments],
+  globals: [SiteSettings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
