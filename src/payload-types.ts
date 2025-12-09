@@ -69,6 +69,11 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
+    businesses: Business;
+    vessels: Vessel;
+    berths: Berth;
+    'service-requests': ServiceRequest;
+    payments: Payment;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -78,16 +83,26 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    businesses: BusinessesSelect<false> | BusinessesSelect<true>;
+    vessels: VesselsSelect<false> | VesselsSelect<true>;
+    berths: BerthsSelect<false> | BerthsSelect<true>;
+    'service-requests': ServiceRequestsSelect<false> | ServiceRequestsSelect<true>;
+    payments: PaymentsSelect<false> | PaymentsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
-    defaultIDType: string;
+    defaultIDType: number;
   };
-  globals: {};
-  globalsSelect: {};
+  fallbackLocale: null;
+  globals: {
+    'site-settings': SiteSetting;
+  };
+  globalsSelect: {
+    'site-settings': SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+  };
   locale: null;
   user: User & {
     collection: 'users';
@@ -120,7 +135,19 @@ export interface UserAuthOperations {
  * via the `definition` "users".
  */
 export interface User {
-  id: string;
+  id: number;
+  role: 'admin' | 'operator' | 'owner' | 'business_rep';
+  fullName: string;
+  idNumber: string;
+  phone: string;
+  address?: {
+    houseName?: string | null;
+    street?: string | null;
+    island?: string | null;
+    zip?: string | null;
+  };
+  photo?: (number | null) | Media;
+  idCardCopy?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -144,8 +171,8 @@ export interface User {
  * via the `definition` "media".
  */
 export interface Media {
-  id: string;
-  alt: string;
+  id: number;
+  alt?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -160,10 +187,131 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "businesses".
+ */
+export interface Business {
+  id: number;
+  name: string;
+  registrationNumber: string;
+  email?: string | null;
+  phone?: string | null;
+  registrationDoc?: (number | null) | Media;
+  owner: number | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "vessels".
+ */
+export interface Vessel {
+  id: number;
+  name: string;
+  registrationNumber: string;
+  registrationType: 'permanent' | 'temporary';
+  status?: ('pending' | 'active' | 'rejected' | 'blacklisted') | null;
+  vesselType:
+    | 'DHOANI'
+    | 'LAUNCH'
+    | 'BOAT'
+    | 'BOKKURA'
+    | 'BAHTHELI'
+    | 'DINGHY'
+    | 'BARGE'
+    | 'YACHT'
+    | 'TUG'
+    | 'SUBMARINE'
+    | 'PASSENGER FERRY'
+    | 'OTHER';
+  useType: 'Passenger' | 'Fishing' | 'Cargo' | 'Diving' | 'Excursion' | 'Other';
+  specs?: {
+    length?: number | null;
+    width?: number | null;
+    engineType?: ('Inboard' | 'Outboard') | null;
+    fuelType?: ('Diesel' | 'Petrol') | null;
+    numberOfEngines?: number | null;
+  };
+  owner: number | User;
+  operator?: (number | null) | User;
+  business?: (number | null) | Business;
+  registrationDoc: number | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "berths".
+ */
+export interface Berth {
+  id: number;
+  vessel: number | Vessel;
+  planType: 'hourly' | 'daily' | 'monthly' | 'yearly';
+  status?: ('active' | 'completed' | 'cancelled') | null;
+  startTime: string;
+  endTime?: string | null;
+  location?: string | null;
+  billing?: {
+    /**
+     * The rate at the time of booking
+     */
+    rateApplied?: number | null;
+    totalCalculated?: number | null;
+    isPaid?: boolean | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "service-requests".
+ */
+export interface ServiceRequest {
+  id: number;
+  vessel: number | Vessel;
+  serviceType:
+    | 'Cleaning'
+    | 'Passenger Pickup'
+    | 'Cargo Loading'
+    | 'Fresh Water'
+    | 'Fuel Supply'
+    | 'Waste Disposal'
+    | 'Vehicle Support';
+  status?: ('requested' | 'in_progress' | 'completed' | 'cancelled') | null;
+  description?: string | null;
+  requestDate?: string | null;
+  unitPrice: number;
+  quantity?: number | null;
+  /**
+   * Unit Price × Quantity
+   */
+  totalPrice?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payments".
+ */
+export interface Payment {
+  id: number;
+  invoiceNumber?: string | null;
+  vessel: number | Vessel;
+  relatedBerth?: (number | null) | Berth;
+  relatedService?: (number | null) | ServiceRequest;
+  amount: number;
+  status: 'unpaid' | 'paid' | 'overdue' | 'cancelled';
+  method?: ('cash' | 'bank_transfer' | 'online' | 'cheque') | null;
+  paidAt?: string | null;
+  proofOfPayment?: (number | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
-  id: string;
+  id: number;
   key: string;
   data:
     | {
@@ -180,20 +328,40 @@ export interface PayloadKv {
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: string;
+  id: number;
   document?:
     | ({
         relationTo: 'users';
-        value: string | User;
+        value: number | User;
       } | null)
     | ({
         relationTo: 'media';
-        value: string | Media;
+        value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'businesses';
+        value: number | Business;
+      } | null)
+    | ({
+        relationTo: 'vessels';
+        value: number | Vessel;
+      } | null)
+    | ({
+        relationTo: 'berths';
+        value: number | Berth;
+      } | null)
+    | ({
+        relationTo: 'service-requests';
+        value: number | ServiceRequest;
+      } | null)
+    | ({
+        relationTo: 'payments';
+        value: number | Payment;
       } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   updatedAt: string;
   createdAt: string;
@@ -203,10 +371,10 @@ export interface PayloadLockedDocument {
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: string;
+  id: number;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   key?: string | null;
   value?:
@@ -226,7 +394,7 @@ export interface PayloadPreference {
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: string;
+  id: number;
   name?: string | null;
   batch?: number | null;
   updatedAt: string;
@@ -237,6 +405,20 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  role?: T;
+  fullName?: T;
+  idNumber?: T;
+  phone?: T;
+  address?:
+    | T
+    | {
+        houseName?: T;
+        street?: T;
+        island?: T;
+        zip?: T;
+      };
+  photo?: T;
+  idCardCopy?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -271,6 +453,101 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "businesses_select".
+ */
+export interface BusinessesSelect<T extends boolean = true> {
+  name?: T;
+  registrationNumber?: T;
+  email?: T;
+  phone?: T;
+  registrationDoc?: T;
+  owner?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "vessels_select".
+ */
+export interface VesselsSelect<T extends boolean = true> {
+  name?: T;
+  registrationNumber?: T;
+  registrationType?: T;
+  status?: T;
+  vesselType?: T;
+  useType?: T;
+  specs?:
+    | T
+    | {
+        length?: T;
+        width?: T;
+        engineType?: T;
+        fuelType?: T;
+        numberOfEngines?: T;
+      };
+  owner?: T;
+  operator?: T;
+  business?: T;
+  registrationDoc?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "berths_select".
+ */
+export interface BerthsSelect<T extends boolean = true> {
+  vessel?: T;
+  planType?: T;
+  status?: T;
+  startTime?: T;
+  endTime?: T;
+  location?: T;
+  billing?:
+    | T
+    | {
+        rateApplied?: T;
+        totalCalculated?: T;
+        isPaid?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "service-requests_select".
+ */
+export interface ServiceRequestsSelect<T extends boolean = true> {
+  vessel?: T;
+  serviceType?: T;
+  status?: T;
+  description?: T;
+  requestDate?: T;
+  unitPrice?: T;
+  quantity?: T;
+  totalPrice?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payments_select".
+ */
+export interface PaymentsSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  vessel?: T;
+  relatedBerth?: T;
+  relatedService?: T;
+  amount?: T;
+  status?: T;
+  method?: T;
+  paidAt?: T;
+  proofOfPayment?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -311,6 +588,44 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings".
+ */
+export interface SiteSetting {
+  id: number;
+  platformName?: string | null;
+  supportPhone?: string | null;
+  supportEmail?: string | null;
+  hourlyRate: number;
+  dailyRate: number;
+  monthlyRate: number;
+  yearlyRate: number;
+  taxPercentage?: number | null;
+  cleaningRate?: number | null;
+  waterRate?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-settings_select".
+ */
+export interface SiteSettingsSelect<T extends boolean = true> {
+  platformName?: T;
+  supportPhone?: T;
+  supportEmail?: T;
+  hourlyRate?: T;
+  dailyRate?: T;
+  monthlyRate?: T;
+  yearlyRate?: T;
+  taxPercentage?: T;
+  cleaningRate?: T;
+  waterRate?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
