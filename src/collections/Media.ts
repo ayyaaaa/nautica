@@ -6,8 +6,8 @@ export const Media: CollectionConfig = {
     read: () => true,
   },
   upload: {
-    // DO NOT put staticDir or staticURL here.
-    // Only put validation rules.
+    // VERCEL FIX: Do not specify staticDir or staticURL here.
+    // Just define the mimeTypes.
     mimeTypes: ['image/*', 'application/pdf'],
   },
   fields: [
