@@ -145,7 +145,7 @@ export default async function PermitPage({ params }: { params: Promise<{ id: str
         {/* Footer */}
         <div className="bg-muted/10 rounded-xl p-6 border border-primary/10 flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4">
-            <QRCode data={`PERMIT:${vessel.id}|REG:${vessel.registrationNumber}|STATUS:ACTIVE`} />
+            <QRCode data={`${process.env.NEXT_PUBLIC_URL}/portal/permit/${vessel.id}`} />
             <div>
               <p className="text-xs text-muted-foreground uppercase">Validity Period</p>
               <p className="font-bold text-sm">
