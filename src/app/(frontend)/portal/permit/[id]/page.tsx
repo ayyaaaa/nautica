@@ -1,8 +1,9 @@
 import { getPermitData } from './actions'
 import { Button } from '@/components/ui/button'
-import { Anchor, Printer, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Anchor, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { PrintButton } from './print-button' // <--- Import the new button
 
 // Simple QR Code generator
 const QRCode = ({ data }: { data: string }) => {
@@ -12,11 +13,13 @@ const QRCode = ({ data }: { data: string }) => {
   )
 }
 
-export default async function PermitPage({ params }: { params: { id: string } }) {
+export default async function PermitPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+
   let data
 
   try {
-    data = await getPermitData(params.id)
+    data = await getPermitData(id)
   } catch (e) {
     redirect('/portal')
   }
@@ -44,7 +47,6 @@ export default async function PermitPage({ params }: { params: { id: string } })
   const operatorName = operator?.fullName || 'N/A'
   const operatorPhone = operator?.phone || 'N/A'
 
-  // FIX: Convert ID to string to safely use substring
   const permitId = String(vessel.id).substring(0, 8).toUpperCase()
 
   return (
@@ -56,11 +58,9 @@ export default async function PermitPage({ params }: { params: { id: string } })
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Fleet
           </Link>
         </Button>
-        <Button asChild className="bg-primary hover:bg-primary/90 text-white">
-          <button onClick={() => typeof window !== 'undefined' && window.print()}>
-            <Printer className="mr-2 h-4 w-4" /> Print Permit
-          </button>
-        </Button>
+
+        {/* REPLACED THE OLD BUTTON WITH THE CLIENT COMPONENT */}
+        <PrintButton />
       </div>
 
       {/* Permit Certificate */}
@@ -89,7 +89,6 @@ export default async function PermitPage({ params }: { params: { id: string } })
             <div className="bg-green-100 text-green-800 border border-green-200 px-3 py-1 rounded-full text-xs font-bold uppercase inline-flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" /> Active
             </div>
-            {/* FIX: Use the String converted ID here */}
             <p className="text-xs text-muted-foreground mt-2">Permit #{permitId}</p>
           </div>
         </div>
@@ -116,7 +115,7 @@ export default async function PermitPage({ params }: { params: { id: string } })
             <Value className="capitalize">{vessel.registrationType} Slot</Value>
           </div>
 
-          {/* 3. Check for specs existence explicitly */}
+          {/* Check for specs existence explicitly */}
           {vessel.specs ? (
             <>
               <div>
