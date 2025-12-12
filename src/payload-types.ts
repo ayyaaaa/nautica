@@ -72,7 +72,7 @@ export interface Config {
     businesses: Business;
     vessels: Vessel;
     berths: Berth;
-    'service-requests': ServiceRequest;
+    services: Service;
     payments: Payment;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -86,7 +86,7 @@ export interface Config {
     businesses: BusinessesSelect<false> | BusinessesSelect<true>;
     vessels: VesselsSelect<false> | VesselsSelect<true>;
     berths: BerthsSelect<false> | BerthsSelect<true>;
-    'service-requests': ServiceRequestsSelect<false> | ServiceRequestsSelect<true>;
+    services: ServicesSelect<false> | ServicesSelect<true>;
     payments: PaymentsSelect<false> | PaymentsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -271,28 +271,20 @@ export interface Berth {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "service-requests".
+ * via the `definition` "services".
  */
-export interface ServiceRequest {
+export interface Service {
   id: number;
+  serviceType: 'cleaning' | 'water' | 'fuel' | 'waste' | 'electric' | 'loading';
   vessel: number | Vessel;
-  serviceType:
-    | 'Cleaning'
-    | 'Passenger Pickup'
-    | 'Cargo Loading'
-    | 'Fresh Water'
-    | 'Fuel Supply'
-    | 'Waste Disposal'
-    | 'Vehicle Support';
-  status?: ('requested' | 'in_progress' | 'completed' | 'cancelled') | null;
-  description?: string | null;
-  requestDate?: string | null;
-  unitPrice: number;
-  quantity?: number | null;
+  status: 'requested' | 'payment_pending' | 'in_progress' | 'completed' | 'cancelled';
+  quantity: number;
   /**
-   * Unit Price × Quantity
+   * Calculated based on Site Settings rates.
    */
-  totalPrice?: number | null;
+  totalCost?: number | null;
+  requestDate: string;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -305,7 +297,7 @@ export interface Payment {
   invoiceNumber?: string | null;
   vessel: number | Vessel;
   relatedBerth?: (number | null) | Berth;
-  relatedService?: (number | null) | ServiceRequest;
+  relatedService?: (number | null) | Service;
   amount: number;
   status: 'unpaid' | 'paid' | 'overdue' | 'cancelled';
   method?: ('cash' | 'bank_transfer' | 'online' | 'cheque') | null;
@@ -359,8 +351,8 @@ export interface PayloadLockedDocument {
         value: number | Berth;
       } | null)
     | ({
-        relationTo: 'service-requests';
-        value: number | ServiceRequest;
+        relationTo: 'services';
+        value: number | Service;
       } | null)
     | ({
         relationTo: 'payments';
@@ -533,17 +525,16 @@ export interface BerthsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "service-requests_select".
+ * via the `definition` "services_select".
  */
-export interface ServiceRequestsSelect<T extends boolean = true> {
-  vessel?: T;
+export interface ServicesSelect<T extends boolean = true> {
   serviceType?: T;
+  vessel?: T;
   status?: T;
-  description?: T;
-  requestDate?: T;
-  unitPrice?: T;
   quantity?: T;
-  totalPrice?: T;
+  totalCost?: T;
+  requestDate?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -620,6 +611,10 @@ export interface SiteSetting {
   taxPercentage?: number | null;
   cleaningRate?: number | null;
   waterRate?: number | null;
+  fuelRate?: number | null;
+  wasteRate?: number | null;
+  electricRate?: number | null;
+  loadingRate?: number | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -638,6 +633,10 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   taxPercentage?: T;
   cleaningRate?: T;
   waterRate?: T;
+  fuelRate?: T;
+  wasteRate?: T;
+  electricRate?: T;
+  loadingRate?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

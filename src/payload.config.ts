@@ -10,10 +10,9 @@ import { Media } from './collections/Media'
 import { Businesses } from './collections/Businesses'
 import { Vessels } from './collections/Vessels'
 import { Berths } from './collections/Berths'
-import { ServiceRequests } from './collections/ServiceRequests'
 import { Payments } from './collections/Payments'
 import { SiteSettings } from './collections/SiteSettings'
-
+import { Services } from './collections/Services' // <--- IMPORT
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
@@ -24,7 +23,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Businesses, Vessels, Berths, ServiceRequests, Payments],
+  collections: [Users, Media, Businesses, Vessels, Berths, Services, Payments],
   globals: [SiteSettings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

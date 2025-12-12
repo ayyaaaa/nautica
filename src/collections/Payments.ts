@@ -32,7 +32,7 @@ export const Payments: CollectionConfig = {
     {
       name: 'relatedService',
       type: 'relationship',
-      relationTo: 'service-requests',
+      relationTo: 'services',
       label: 'Related Service Request',
       admin: {
         condition: (data) => !data.relatedBerth, // Hide if berth is selected

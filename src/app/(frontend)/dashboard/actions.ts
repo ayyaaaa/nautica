@@ -18,6 +18,12 @@ export async function getDashboardStats() {
     limit: 1000,
     depth: 0,
   })
+  const { totalDocs: pendingServicesCount } = await payload.count({
+    collection: 'services',
+    where: {
+      status: { equals: 'requested' },
+    },
+  })
 
   // --- 1. CALCULATE SUMMARY CARDS ---
   const today = new Date().toDateString()
@@ -33,7 +39,7 @@ export async function getDashboardStats() {
     revenueToday: 0,
     revenueMonth: 0,
     revenueLastMonth: 0, // Mock for growth calc
-    pendingServices: 5, // Mock: Since we don't have a Services collection yet
+    pendingServices: pendingServicesCount, // <--- USE REAL COUNT HERE, // Mock: Since we don't have a Services collection yet
   }
 
   // --- 2. PREPARE CHART DATA ---
