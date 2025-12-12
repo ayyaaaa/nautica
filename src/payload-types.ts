@@ -208,8 +208,14 @@ export interface Vessel {
   id: number;
   name: string;
   registrationNumber: string;
-  registrationType: 'permanent' | 'temporary';
-  status?: ('pending' | 'active' | 'rejected' | 'blacklisted') | null;
+  registrationType: 'permanent' | 'temporary' | 'hourly';
+  status: 'pending' | 'payment_pending' | 'active' | 'rejected' | 'blacklisted';
+  finance?: {
+    fee?: number | null;
+    paymentStatus?: ('unpaid' | 'paid') | null;
+    paymentDate?: string | null;
+    transactionId?: string | null;
+  };
   vesselType:
     | 'DHOANI'
     | 'LAUNCH'
@@ -224,17 +230,15 @@ export interface Vessel {
     | 'PASSENGER FERRY'
     | 'OTHER';
   useType: 'Passenger' | 'Fishing' | 'Cargo' | 'Diving' | 'Excursion' | 'Other';
+  owner: number | User;
+  operator?: (number | null) | User;
+  registrationDoc?: (number | null) | Media;
   specs?: {
     length?: number | null;
     width?: number | null;
-    engineType?: ('Inboard' | 'Outboard') | null;
     fuelType?: ('Diesel' | 'Petrol') | null;
-    numberOfEngines?: number | null;
+    engineType?: ('Inboard' | 'Outboard') | null;
   };
-  owner: number | User;
-  operator?: (number | null) | User;
-  business?: (number | null) | Business;
-  registrationDoc?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -477,21 +481,27 @@ export interface VesselsSelect<T extends boolean = true> {
   registrationNumber?: T;
   registrationType?: T;
   status?: T;
+  finance?:
+    | T
+    | {
+        fee?: T;
+        paymentStatus?: T;
+        paymentDate?: T;
+        transactionId?: T;
+      };
   vesselType?: T;
   useType?: T;
+  owner?: T;
+  operator?: T;
+  registrationDoc?: T;
   specs?:
     | T
     | {
         length?: T;
         width?: T;
-        engineType?: T;
         fuelType?: T;
-        numberOfEngines?: T;
+        engineType?: T;
       };
-  owner?: T;
-  operator?: T;
-  business?: T;
-  registrationDoc?: T;
   updatedAt?: T;
   createdAt?: T;
 }

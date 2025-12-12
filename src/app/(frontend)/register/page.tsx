@@ -232,6 +232,19 @@ export default function RegistrationPage() {
                                 </span>
                               </label>
                             </div>
+                            {/* NEW: Hourly */}
+                            <div>
+                              <RadioGroupItem value="hourly" id="hourly" className="sr-only peer" />
+                              <label
+                                htmlFor="hourly"
+                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                              >
+                                <span className="mb-1 text-lg font-semibold">Short Visit</span>
+                                <span className="text-xs text-center text-muted-foreground">
+                                  Hourly Rate
+                                </span>
+                              </label>
+                            </div>
                           </RadioGroup>
                         </FormControl>
                         <FormMessage />

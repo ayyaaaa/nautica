@@ -3,7 +3,7 @@ import { z } from 'zod'
 // --- 1. Base Schema ---
 const baseSchema = z.object({
   // Step 1: Registration Type
-  registrationType: z.enum(['permanent', 'temporary']),
+  registrationType: z.enum(['permanent', 'temporary', 'hourly']),
 
   // Step 2: Operator (Personal) Info
   operatorName: z.string().min(2, 'Name must be at least 2 characters.'),
