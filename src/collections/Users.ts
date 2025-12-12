@@ -7,13 +7,41 @@ export const Users: CollectionConfig = {
     useAsTitle: 'fullName',
     defaultColumns: ['fullName', 'role', 'email', 'phone'],
   },
+
+  // --- SECURITY LAYER 1: COLLECTION ACCESS ---
   access: {
-    // Only admins or the user themselves can read their data
-    read: ({ req: { user } }) => {
-      if (user?.role === 'admin') return true
-      return { id: { equals: user?.id } }
+    // 1. DASHBOARD ACCESS: Only admins can access the /admin panel
+    admin: ({ req: { user } }) => {
+      return Boolean(user && user.role === 'admin')
     },
+
+    // 2. READ: Admins see everyone; Users see only themselves
+    read: ({ req: { user } }) => {
+      if (user && user.role === 'admin') return true
+      return {
+        id: {
+          equals: user?.id,
+        },
+      }
+    },
+
+    // 3. CREATE: Allow anyone to register (public registration)
+    create: () => true,
+
+    // 4. UPDATE: Admins update anyone; Users update only themselves
+    update: ({ req: { user } }) => {
+      if (user && user.role === 'admin') return true
+      return {
+        id: {
+          equals: user?.id,
+        },
+      }
+    },
+
+    // 5. DELETE: Only admins can delete users
+    delete: ({ req: { user } }) => Boolean(user && user.role === 'admin'),
   },
+
   fields: [
     {
       name: 'role',
@@ -26,6 +54,17 @@ export const Users: CollectionConfig = {
       ],
       defaultValue: 'operator',
       required: true,
+
+      // --- SECURITY LAYER 2: FIELD ACCESS ---
+      access: {
+        // Only an existing Admin can set the role to 'admin' (or anything else)
+        // If a public user registers, this check fails, so Payload ignores their input
+        // and falls back to defaultValue: 'operator'
+        create: ({ req: { user } }) => user?.role === 'admin',
+
+        // Only an Admin can change a role later
+        update: ({ req: { user } }) => user?.role === 'admin',
+      },
     },
     {
       name: 'fullName',
@@ -59,7 +98,7 @@ export const Users: CollectionConfig = {
       name: 'photo',
       label: 'Passport Photo',
       type: 'upload',
-      relationTo: 'media', // You need a 'media' collection for this
+      relationTo: 'media',
     },
     {
       name: 'idCardCopy',

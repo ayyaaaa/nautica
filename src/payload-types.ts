@@ -234,7 +234,7 @@ export interface Vessel {
   owner: number | User;
   operator?: (number | null) | User;
   business?: (number | null) | Business;
-  registrationDoc: number | Media;
+  registrationDoc?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
 }

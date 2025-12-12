@@ -120,7 +120,7 @@ export const Vessels: CollectionConfig = {
       label: 'Vessel Registration Copy',
       type: 'upload',
       relationTo: 'media',
-      required: true,
+      required: false,
     },
   ],
 }
