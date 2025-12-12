@@ -30,12 +30,13 @@ export async function updateApplicationStatus(vesselId: string, action: 'approve
       const vessel = await payload.findByID({ collection: 'vessels', id: vesselId })
       const settings = await payload.findGlobal({ slug: 'site-settings' })
 
-      // 2. Determine Base Rate
       let baseRate = 0
+
       if (vessel.registrationType === 'permanent') {
-        baseRate = settings.monthlyRate || 10000
+        // UPDATE: Use YEARLY rate for permanent vessels
+        baseRate = settings.yearlyRate || 100000
       } else if (vessel.registrationType === 'hourly') {
-        baseRate = settings.hourlyRate || 50 // <--- Hourly Logic
+        baseRate = settings.hourlyRate || 50
       } else {
         baseRate = settings.dailyRate || 500
       }

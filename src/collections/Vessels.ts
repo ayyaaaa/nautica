@@ -91,6 +91,14 @@ export const Vessels: CollectionConfig = {
           label: 'Payment Date',
         },
         {
+          name: 'nextPaymentDue',
+          type: 'date',
+          label: 'Subscription Expiry Date',
+          admin: {
+            description: 'When the current payment period ends.',
+          },
+        },
+        {
           name: 'transactionId',
           type: 'text',
           label: 'Transaction Ref ID',

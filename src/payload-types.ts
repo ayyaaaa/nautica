@@ -214,6 +214,10 @@ export interface Vessel {
     fee?: number | null;
     paymentStatus?: ('unpaid' | 'paid') | null;
     paymentDate?: string | null;
+    /**
+     * When the current payment period ends.
+     */
+    nextPaymentDue?: string | null;
     transactionId?: string | null;
   };
   vesselType:
@@ -487,6 +491,7 @@ export interface VesselsSelect<T extends boolean = true> {
         fee?: T;
         paymentStatus?: T;
         paymentDate?: T;
+        nextPaymentDue?: T;
         transactionId?: T;
       };
   vesselType?: T;

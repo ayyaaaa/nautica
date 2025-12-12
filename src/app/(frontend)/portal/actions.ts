@@ -29,3 +29,36 @@ export async function getMyVessels() {
 
   return { vessels: results.docs, user }
 }
+// ... existing getMyVessels ...
+
+export async function renewSubscription(vesselId: string) {
+  const payload = await getPayload({ config: configPromise })
+
+  // 1. Fetch Settings for current price
+  const settings = await payload.findGlobal({ slug: 'site-settings' })
+  const vessel = await payload.findByID({ collection: 'vessels', id: vesselId })
+
+  // 2. Calculate New Fee (Prices might have changed since last year)
+  let baseRate = 0
+  if (vessel.registrationType === 'permanent') baseRate = settings.yearlyRate || 100000
+  else if (vessel.registrationType === 'hourly') baseRate = settings.hourlyRate || 50
+  else baseRate = settings.dailyRate || 500
+
+  const tax = (baseRate * (settings.taxPercentage || 0)) / 100
+  const totalFee = baseRate + tax
+
+  // 3. Reset Status to 'payment_pending'
+  await payload.update({
+    collection: 'vessels',
+    id: vesselId,
+    data: {
+      status: 'payment_pending', // This triggers the "Pay" button in portal
+      finance: {
+        paymentStatus: 'unpaid',
+        fee: totalFee, // Update to new fee
+      },
+    },
+  })
+
+  return { success: true }
+}
