@@ -4,7 +4,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob' // <--- IMPORT THIS
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Businesses } from './collections/Businesses'
@@ -38,5 +38,14 @@ export default buildConfig({
     push: true,
   }),
   sharp,
-  plugins: [],
+  plugins: [
+    vercelBlobStorage({
+      enabled: true, // Only enable if you have the token (useful to keep false locally if you want)
+      collections: {
+        media: true, // Enable for your 'media' collection
+        // If you have other upload collections, list them here
+      },
+      token: process.env.BLOB_READ_WRITE_TOKEN, // Vercel injects this automatically in production
+    }),
+  ],
 })
