@@ -1,9 +1,9 @@
-import * as migration_20251212_134601_add_finance_fields from './20251212_134601_add_finance_fields';
+import * as migration_20251212_140700_initial_setup from './20251212_140700_initial_setup';
 
 export const migrations = [
   {
-    up: migration_20251212_134601_add_finance_fields.up,
-    down: migration_20251212_134601_add_finance_fields.down,
-    name: '20251212_134601_add_finance_fields'
+    up: migration_20251212_140700_initial_setup.up,
+    down: migration_20251212_140700_initial_setup.down,
+    name: '20251212_140700_initial_setup'
   },
 ];
