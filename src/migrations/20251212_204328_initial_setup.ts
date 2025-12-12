@@ -12,8 +12,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE TYPE "public"."enum_vessels_specs_engine_type" AS ENUM('Inboard', 'Outboard');
   CREATE TYPE "public"."enum_berths_plan_type" AS ENUM('hourly', 'daily', 'monthly', 'yearly');
   CREATE TYPE "public"."enum_berths_status" AS ENUM('active', 'completed', 'cancelled');
-  CREATE TYPE "public"."enum_service_requests_service_type" AS ENUM('Cleaning', 'Passenger Pickup', 'Cargo Loading', 'Fresh Water', 'Fuel Supply', 'Waste Disposal', 'Vehicle Support');
-  CREATE TYPE "public"."enum_service_requests_status" AS ENUM('requested', 'in_progress', 'completed', 'cancelled');
+  CREATE TYPE "public"."enum_services_service_type" AS ENUM('cleaning', 'water', 'fuel', 'waste', 'electric', 'loading');
+  CREATE TYPE "public"."enum_services_status" AS ENUM('requested', 'payment_pending', 'in_progress', 'completed', 'cancelled');
   CREATE TYPE "public"."enum_payments_status" AS ENUM('unpaid', 'paid', 'overdue', 'cancelled');
   CREATE TYPE "public"."enum_payments_method" AS ENUM('cash', 'bank_transfer', 'online', 'cheque');
   CREATE TABLE "users_sessions" (
@@ -114,16 +114,15 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
   
-  CREATE TABLE "service_requests" (
+  CREATE TABLE "services" (
   	"id" serial PRIMARY KEY NOT NULL,
+  	"service_type" "enum_services_service_type" NOT NULL,
   	"vessel_id" integer NOT NULL,
-  	"service_type" "enum_service_requests_service_type" NOT NULL,
-  	"status" "enum_service_requests_status" DEFAULT 'requested',
-  	"description" varchar,
-  	"request_date" timestamp(3) with time zone,
-  	"unit_price" numeric NOT NULL,
-  	"quantity" numeric DEFAULT 1,
-  	"total_price" numeric,
+  	"status" "enum_services_status" DEFAULT 'requested' NOT NULL,
+  	"quantity" numeric DEFAULT 1 NOT NULL,
+  	"total_cost" numeric,
+  	"request_date" timestamp(3) with time zone NOT NULL,
+  	"notes" varchar,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
@@ -166,7 +165,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"businesses_id" integer,
   	"vessels_id" integer,
   	"berths_id" integer,
-  	"service_requests_id" integer,
+  	"services_id" integer,
   	"payments_id" integer
   );
   
@@ -196,7 +195,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   
   CREATE TABLE "site_settings" (
   	"id" serial PRIMARY KEY NOT NULL,
-  	"platform_name" varchar DEFAULT 'Harbor Management System',
+  	"platform_name" varchar DEFAULT 'Nautica Harbor',
   	"support_phone" varchar,
   	"support_email" varchar,
   	"hourly_rate" numeric DEFAULT 50 NOT NULL,
@@ -204,8 +203,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"monthly_rate" numeric DEFAULT 10000 NOT NULL,
   	"yearly_rate" numeric DEFAULT 100000 NOT NULL,
   	"tax_percentage" numeric DEFAULT 6,
-  	"cleaning_rate" numeric,
-  	"water_rate" numeric,
+  	"cleaning_rate" numeric DEFAULT 150,
+  	"water_rate" numeric DEFAULT 50,
+  	"fuel_rate" numeric DEFAULT 25,
+  	"waste_rate" numeric DEFAULT 200,
+  	"electric_rate" numeric DEFAULT 5,
+  	"loading_rate" numeric DEFAULT 100,
   	"updated_at" timestamp(3) with time zone,
   	"created_at" timestamp(3) with time zone
   );
@@ -219,10 +222,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "vessels" ADD CONSTRAINT "vessels_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "vessels" ADD CONSTRAINT "vessels_registration_doc_id_media_id_fk" FOREIGN KEY ("registration_doc_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "berths" ADD CONSTRAINT "berths_vessel_id_vessels_id_fk" FOREIGN KEY ("vessel_id") REFERENCES "public"."vessels"("id") ON DELETE set null ON UPDATE no action;
-  ALTER TABLE "service_requests" ADD CONSTRAINT "service_requests_vessel_id_vessels_id_fk" FOREIGN KEY ("vessel_id") REFERENCES "public"."vessels"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "services" ADD CONSTRAINT "services_vessel_id_vessels_id_fk" FOREIGN KEY ("vessel_id") REFERENCES "public"."vessels"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "payments" ADD CONSTRAINT "payments_vessel_id_vessels_id_fk" FOREIGN KEY ("vessel_id") REFERENCES "public"."vessels"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "payments" ADD CONSTRAINT "payments_related_berth_id_berths_id_fk" FOREIGN KEY ("related_berth_id") REFERENCES "public"."berths"("id") ON DELETE set null ON UPDATE no action;
-  ALTER TABLE "payments" ADD CONSTRAINT "payments_related_service_id_service_requests_id_fk" FOREIGN KEY ("related_service_id") REFERENCES "public"."service_requests"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "payments" ADD CONSTRAINT "payments_related_service_id_services_id_fk" FOREIGN KEY ("related_service_id") REFERENCES "public"."services"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "payments" ADD CONSTRAINT "payments_proof_of_payment_id_media_id_fk" FOREIGN KEY ("proof_of_payment_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_locked_documents"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
@@ -230,7 +233,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_businesses_fk" FOREIGN KEY ("businesses_id") REFERENCES "public"."businesses"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_vessels_fk" FOREIGN KEY ("vessels_id") REFERENCES "public"."vessels"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_berths_fk" FOREIGN KEY ("berths_id") REFERENCES "public"."berths"("id") ON DELETE cascade ON UPDATE no action;
-  ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_service_requests_fk" FOREIGN KEY ("service_requests_id") REFERENCES "public"."service_requests"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_services_fk" FOREIGN KEY ("services_id") REFERENCES "public"."services"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_payments_fk" FOREIGN KEY ("payments_id") REFERENCES "public"."payments"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_preferences"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
@@ -258,9 +261,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "berths_vessel_idx" ON "berths" USING btree ("vessel_id");
   CREATE INDEX "berths_updated_at_idx" ON "berths" USING btree ("updated_at");
   CREATE INDEX "berths_created_at_idx" ON "berths" USING btree ("created_at");
-  CREATE INDEX "service_requests_vessel_idx" ON "service_requests" USING btree ("vessel_id");
-  CREATE INDEX "service_requests_updated_at_idx" ON "service_requests" USING btree ("updated_at");
-  CREATE INDEX "service_requests_created_at_idx" ON "service_requests" USING btree ("created_at");
+  CREATE INDEX "services_vessel_idx" ON "services" USING btree ("vessel_id");
+  CREATE INDEX "services_updated_at_idx" ON "services" USING btree ("updated_at");
+  CREATE INDEX "services_created_at_idx" ON "services" USING btree ("created_at");
   CREATE UNIQUE INDEX "payments_invoice_number_idx" ON "payments" USING btree ("invoice_number");
   CREATE INDEX "payments_vessel_idx" ON "payments" USING btree ("vessel_id");
   CREATE INDEX "payments_related_berth_idx" ON "payments" USING btree ("related_berth_id");
@@ -280,7 +283,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_businesses_id_idx" ON "payload_locked_documents_rels" USING btree ("businesses_id");
   CREATE INDEX "payload_locked_documents_rels_vessels_id_idx" ON "payload_locked_documents_rels" USING btree ("vessels_id");
   CREATE INDEX "payload_locked_documents_rels_berths_id_idx" ON "payload_locked_documents_rels" USING btree ("berths_id");
-  CREATE INDEX "payload_locked_documents_rels_service_requests_id_idx" ON "payload_locked_documents_rels" USING btree ("service_requests_id");
+  CREATE INDEX "payload_locked_documents_rels_services_id_idx" ON "payload_locked_documents_rels" USING btree ("services_id");
   CREATE INDEX "payload_locked_documents_rels_payments_id_idx" ON "payload_locked_documents_rels" USING btree ("payments_id");
   CREATE INDEX "payload_preferences_key_idx" ON "payload_preferences" USING btree ("key");
   CREATE INDEX "payload_preferences_updated_at_idx" ON "payload_preferences" USING btree ("updated_at");
@@ -301,7 +304,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "businesses" CASCADE;
   DROP TABLE "vessels" CASCADE;
   DROP TABLE "berths" CASCADE;
-  DROP TABLE "service_requests" CASCADE;
+  DROP TABLE "services" CASCADE;
   DROP TABLE "payments" CASCADE;
   DROP TABLE "payload_kv" CASCADE;
   DROP TABLE "payload_locked_documents" CASCADE;
@@ -320,8 +323,8 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TYPE "public"."enum_vessels_specs_engine_type";
   DROP TYPE "public"."enum_berths_plan_type";
   DROP TYPE "public"."enum_berths_status";
-  DROP TYPE "public"."enum_service_requests_service_type";
-  DROP TYPE "public"."enum_service_requests_status";
+  DROP TYPE "public"."enum_services_service_type";
+  DROP TYPE "public"."enum_services_status";
   DROP TYPE "public"."enum_payments_status";
   DROP TYPE "public"."enum_payments_method";`)
 }
