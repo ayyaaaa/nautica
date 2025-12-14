@@ -139,9 +139,7 @@ export default async function DashboardPage() {
                     className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
                   >
                     <div>
-                      <p className="font-medium text-sm text-red-600">
-                        Invoice #{vessel.id.substring(0, 6).toUpperCase()}
-                      </p>
+                      <p className="font-medium text-sm text-red-600"></p>
                       <p className="text-xs text-muted-foreground">{vessel.name}</p>
                     </div>
                     <div className="text-right">

@@ -20,6 +20,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { CreateVesselDialog } from './create-vessel-dialog'
 
 export default async function VesselsPage({
   searchParams,
@@ -40,11 +41,7 @@ export default async function VesselsPage({
           <h1 className="text-3xl font-bold tracking-tight">Vessel Fleet</h1>
           <p className="text-muted-foreground">Manage and monitor all registered vessels.</p>
         </div>
-        <Button asChild>
-          <Link href="/admin/collections/vessels/create">
-            <Ship className="mr-2 h-4 w-4" /> Register Manual Vessel
-          </Link>
-        </Button>
+        <CreateVesselDialog />
       </div>
 
       <Card>
