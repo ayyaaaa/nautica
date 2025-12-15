@@ -7,15 +7,14 @@ import Link from 'next/link'
 import { RevenueChart } from './charts/revenue-chart'
 import { VesselPieChart } from './charts/vessel-pie-chart'
 
-// IMPORT NEW CHART COMPONENTS
+// IMPORT NEW WIDGET
+import { RunningBillsWidget } from './running-bills'
 
 export default async function DashboardPage() {
   const { stats, typeBreakdown, revenueHistory, recentActivity, user } = await getDashboardStats()
 
   // Transform Data for Charts
   const pieData = Object.entries(typeBreakdown).map(([name, value]) => ({ name, value }))
-
-  // (Optional) Group revenue by Month if needed, currently passing raw
   const lineData = revenueHistory
 
   return (
@@ -47,7 +46,7 @@ export default async function DashboardPage() {
         <SummaryCard
           label="Berths in Use"
           value={`${stats.berthsOccupied}/${stats.totalBerths}`}
-          subtext={`${Math.round((stats.berthsOccupied / stats.totalBerths) * 100)}% Occupancy`}
+          subtext={`${Math.round((stats.berthsOccupied / (stats.totalBerths || 1)) * 100)}% Occupancy`}
           icon={<Anchor className="text-purple-600" />}
         />
         <SummaryCard
@@ -66,7 +65,7 @@ export default async function DashboardPage() {
         <SummaryCard
           label="Monthly Revenue"
           value={`MVR ${stats.revenueMonth.toLocaleString()}`}
-          subtext="+12% vs last month"
+          subtext="Current Month"
           icon={<Banknote className="text-green-600" />}
         />
         <SummaryCard
@@ -77,7 +76,13 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* --- SECTION B: RECHARTS GRAPHS --- */}
+      {/* --- SECTION B: RUNNING BILLS (REAL-TIME TABS) --- */}
+      {/* This widget shows the accumulated cost for Temporary vessels currently in the harbor */}
+      <div className="grid grid-cols-1">
+        <RunningBillsWidget />
+      </div>
+
+      {/* --- SECTION C: RECHARTS GRAPHS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Line Chart */}
         <RevenueChart data={lineData} />
@@ -86,7 +91,7 @@ export default async function DashboardPage() {
         <VesselPieChart data={pieData} />
       </div>
 
-      {/* --- SECTION C: TABLES --- */}
+      {/* --- SECTION D: TABLES --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity */}
         <Card>

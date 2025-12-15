@@ -1,5 +1,14 @@
-import { getVessels } from './actions'
+import { getPayload } from 'payload'
+import configPromise from '@payload-config'
+
+// 1. Updated Imports
+import { getVessels, reAdmitVessel, getAvailableBerths } from './actions'
+
 import { VesselFilters } from './vessel-filters'
+import { CreateVesselDialog } from './create-vessel-dialog'
+import { DepartButton } from './depart-button'
+import { AssignBerthModal } from './assign-berth-modal' // <--- NEW IMPORT
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { MoreHorizontal, FileText, Ship, Download } from 'lucide-react'
+import { MoreHorizontal, FileText, Download, RotateCw } from 'lucide-react'
 import Link from 'next/link'
 import {
   DropdownMenu,
@@ -20,7 +29,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { CreateVesselDialog } from './create-vessel-dialog'
 
 export default async function VesselsPage({
   searchParams,
@@ -32,7 +40,9 @@ export default async function VesselsPage({
   const search = params.search || ''
   const status = params.status || 'all'
 
+  // 2. Fetch Data (Vessels + Available Slots)
   const { docs, totalPages, totalDocs } = await getVessels({ search, status, page })
+  const availableSlots = await getAvailableBerths() // <--- NEW FETCH
 
   return (
     <div className="space-y-6">
@@ -52,10 +62,8 @@ export default async function VesselsPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* FILTERS & SEARCH */}
           <VesselFilters />
 
-          {/* TABLE */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -109,30 +117,61 @@ export default async function VesselsPage({
                       <TableCell>
                         <span className="capitalize text-sm">{vessel.registrationType}</span>
                       </TableCell>
+
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/collections/vessels/${vessel.id}`}>
-                                <FileText className="mr-2 h-4 w-4" /> View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            {vessel.status === 'active' && (
+                        <div className="flex justify-end items-center gap-2">
+                          {/* --- ACTION 1: APPROVE & DOCK (For Pending) --- */}
+                          {vessel.status === 'pending' && (
+                            <AssignBerthModal
+                              vesselId={vessel.id}
+                              vesselName={vessel.name}
+                              availableSlots={availableSlots}
+                            />
+                          )}
+
+                          {/* --- ACTION 2: DEPART (For Active Temp Vessels) --- */}
+                          {vessel.status === 'active' &&
+                            vessel.registrationType !== 'permanent' && (
+                              <DepartButton id={vessel.id} name={vessel.name} />
+                            )}
+
+                          {/* --- ACTION 3: RE-ADMIT (For Departed Vessels) --- */}
+                          {vessel.status === 'departed' && (
+                            <form action={reAdmitVessel.bind(null, vessel.id)}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 border-dashed text-muted-foreground hover:text-primary"
+                              >
+                                <RotateCw className="mr-1 h-3 w-3" /> Re-Admit
+                              </Button>
+                            </form>
+                          )}
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuItem asChild>
-                                <Link href={`/portal/permit/${vessel.id}`} target="_blank">
-                                  <Download className="mr-2 h-4 w-4" /> Download Permit
+                                <Link href={`/admin/collections/vessels/${vessel.id}`}>
+                                  <FileText className="mr-2 h-4 w-4" /> View Details
                                 </Link>
                               </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {vessel.status === 'active' && (
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/portal/permit/${vessel.id}`} target="_blank">
+                                    <Download className="mr-2 h-4 w-4" /> Download Permit
+                                  </Link>
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -141,7 +180,6 @@ export default async function VesselsPage({
             </Table>
           </div>
 
-          {/* PAGINATION (Simple Next/Prev) */}
           <div className="flex items-center justify-end space-x-2 py-4">
             <Button variant="outline" size="sm" disabled={page <= 1} asChild>
               <Link href={`/dashboard/vessels?page=${page - 1}&search=${search}&status=${status}`}>
@@ -169,6 +207,7 @@ function StatusBadge({ status }: { status: string }) {
     pending: 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100',
     payment_pending: 'bg-blue-100 text-blue-700 hover:bg-blue-100',
     rejected: 'bg-red-100 text-red-700 hover:bg-red-100',
+    departed: 'bg-stone-100 text-stone-500 hover:bg-stone-200',
     blacklisted: 'bg-gray-800 text-white hover:bg-gray-700',
   }
   return (

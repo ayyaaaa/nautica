@@ -1,3 +1,7 @@
+import { getPayload } from 'payload'
+import configPromise from '@payload-config'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { getMyVessels } from './actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,12 +13,20 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/ui/card'
-import { Ship, CheckCircle2, Clock, Wrench, Plus, ArrowRight } from 'lucide-react'
+import { Ship, CheckCircle2, Clock, Wrench, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { RenewButton } from './renew-button'
 
 export default async function UserPortal() {
-  const { vessels, user } = await getMyVessels()
+  const payload = await getPayload({ config: configPromise })
+  const headersList = await headers()
+
+  // 1. Fetch User (for the Welcome message)
+  const { user } = await payload.auth({ headers: headersList })
+  if (!user) return redirect('/admin/login')
+
+  // 2. Fetch Vessels (Returns the array directly)
+  const vessels = await getMyVessels()
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -22,7 +34,7 @@ export default async function UserPortal() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Welcome, {user.fullName || 'Captain'}
+            Welcome, {user.fullName || user.email || 'Captain'}
           </h1>
           <p className="text-muted-foreground">Manage your fleet and harbor services.</p>
         </div>
@@ -41,8 +53,6 @@ export default async function UserPortal() {
         </div>
       </div>
 
-      {/* Quick Stats / Summary can go here later */}
-
       {/* Vessel Grid */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -50,7 +60,7 @@ export default async function UserPortal() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {vessels.length === 0 ? (
+          {!vessels || vessels.length === 0 ? (
             <Card className="col-span-full py-16 flex flex-col items-center justify-center text-center bg-muted/20 border-dashed">
               <Ship className="w-16 h-16 text-muted-foreground mb-4 opacity-20" />
               <CardTitle className="text-xl">No Vessels Found</CardTitle>
@@ -184,6 +194,13 @@ function StatusBadge({ status, isExpired }: { status: string; isExpired?: boolea
     )
   if (status === 'rejected')
     return <Badge className="bg-red-500/15 text-red-700 border-red-200">Rejected</Badge>
+  if (status === 'departed')
+    return (
+      <Badge variant="outline" className="text-muted-foreground">
+        Departed
+      </Badge>
+    )
+
   return <Badge className="bg-yellow-500/15 text-yellow-700 border-yellow-200">Pending</Badge>
 }
 
@@ -191,5 +208,6 @@ function getStatusColor(status: string, isExpired?: boolean | null) {
   if (status === 'active') return isExpired ? 'bg-red-500' : 'bg-green-500'
   if (status === 'payment_pending') return 'bg-blue-500'
   if (status === 'rejected') return 'bg-red-500'
+  if (status === 'departed') return 'bg-gray-500'
   return 'bg-yellow-500'
 }

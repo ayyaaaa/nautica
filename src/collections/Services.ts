@@ -65,6 +65,19 @@ export const Services: CollectionConfig = {
       },
     },
     {
+      name: 'paymentStatus',
+      type: 'select',
+      defaultValue: 'unpaid',
+      options: [
+        { label: 'Unpaid', value: 'unpaid' },
+        { label: 'Paid', value: 'paid' },
+        { label: 'Waived', value: 'waived' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'requestDate',
       type: 'date',
       defaultValue: () => new Date().toISOString(),

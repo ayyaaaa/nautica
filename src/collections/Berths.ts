@@ -46,9 +46,11 @@ export const Berths: CollectionConfig = {
       ],
     },
     {
-      name: 'location',
-      label: 'Assigned Slot / Area',
-      type: 'text',
+      name: 'assignedSlot',
+      type: 'relationship',
+      relationTo: 'berthing-slots', // Links to our new collection
+      required: true,
+      label: 'Assigned Physical Slot',
     },
 
     // --- Financials ---

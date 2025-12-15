@@ -1,64 +1,71 @@
 'use client'
 
-import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useDebouncedCallback } from 'use-debounce'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useDebounce } from 'use-debounce'
+import { useEffect, useState } from 'react'
 
 export function VesselFilters() {
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const { replace } = useRouter()
 
-  // Debounce search so we don't reload on every keystroke
-  const handleSearch = useDebouncedCallback((term: string) => {
+  // Initialize state with URL params
+  const [text, setText] = useState(searchParams.get('search') || '')
+  const [query] = useDebounce(text, 500)
+  const status = searchParams.get('status') || 'all'
+
+  // Sync Search Text to URL
+  useEffect(() => {
     const params = new URLSearchParams(searchParams)
-    if (term) {
-      params.set('search', term)
+    if (query) {
+      params.set('search', query)
     } else {
       params.delete('search')
     }
-    params.set('page', '1') // Reset to page 1
-    replace(`/dashboard/vessels?${params.toString()}`)
-  }, 300)
+    params.set('page', '1') // Reset to page 1 on new search
+    router.push(`?${params.toString()}`)
+  }, [query, router, searchParams])
 
-  const handleStatusChange = (status: string) => {
+  // Sync Dropdown to URL
+  const handleStatusChange = (val: string) => {
     const params = new URLSearchParams(searchParams)
-    if (status && status !== 'all') {
-      params.set('status', status)
+    if (val && val !== 'all') {
+      params.set('status', val)
     } else {
       params.delete('status')
     }
     params.set('page', '1')
-    replace(`/dashboard/vessels?${params.toString()}`)
+    router.push(`?${params.toString()}`)
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
-      {/* Status Tabs */}
-      <Tabs
-        defaultValue={searchParams.get('status') || 'all'}
-        onValueChange={handleStatusChange}
-        className="w-full md:w-auto"
-      >
-        <TabsList>
-          <TabsTrigger value="all">All Vessels</TabsTrigger>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="payment_pending">Unpaid</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Search Input */}
-      <div className="relative w-full md:w-72">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by name or reg no..."
-          className="pl-8 bg-background"
-          onChange={(e) => handleSearch(e.target.value)}
-          defaultValue={searchParams.get('search')?.toString()}
-        />
-      </div>
+    <div className="flex flex-col sm:flex-row gap-4 mb-4">
+      <Input
+        placeholder="Search by name or reg number..."
+        className="max-w-sm"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <Select value={status} onValueChange={handleStatusChange}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Filter by Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Statuses</SelectItem>
+          <SelectItem value="active">Active (In Harbor)</SelectItem>
+          <SelectItem value="pending">Pending Approval</SelectItem>
+          <SelectItem value="payment_pending">Unpaid Bills</SelectItem>
+          <SelectItem value="departed">Departed (History)</SelectItem>
+          <SelectItem value="rejected">Rejected</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

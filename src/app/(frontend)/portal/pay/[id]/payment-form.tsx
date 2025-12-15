@@ -1,0 +1,128 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { CreditCard, Loader2, Lock, Ship } from 'lucide-react'
+import { toast } from 'sonner'
+import { processPayment } from '../../actions' // Check relative path
+
+interface PaymentFormProps {
+  vesselName: string
+  regNumber: string
+  amount: number
+  vesselId: string
+}
+
+export function PaymentForm({ vesselName, regNumber, amount, vesselId }: PaymentFormProps) {
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handlePay = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      // 1. Simulate Network Delay (Mock Gateway)
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+
+      // 2. Call Server Action
+      const result = await processPayment(vesselId)
+
+      if (result.success) {
+        toast.success('Payment Successful!', {
+          description: `Bill of MVR ${amount} cleared.`,
+        })
+        // Redirect back to dashboard
+        window.location.href = '/portal'
+      } else {
+        toast.error('Payment Failed', { description: result.error })
+      }
+    } catch (error) {
+      toast.error('System Error')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-md shadow-xl border-t-4 border-t-blue-600">
+      <CardHeader className="bg-slate-50/50 border-b pb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-xl text-blue-900">Secure Checkout</CardTitle>
+            <CardDescription>Complete payment for {vesselName}</CardDescription>
+          </div>
+          <div className="text-right">
+            <span className="block text-xs text-muted-foreground uppercase font-bold">
+              Total Due
+            </span>
+            <span className="text-2xl font-bold text-slate-900">MVR {amount.toLocaleString()}</span>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-6">
+        <form onSubmit={handlePay} className="space-y-4">
+          <div className="bg-blue-50 p-3 rounded-md flex items-center gap-3 text-sm text-blue-700 mb-4">
+            <Ship className="w-4 h-4" />
+            <span className="font-medium">
+              {vesselName} ({regNumber})
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Cardholder Name</Label>
+            <Input placeholder="Name on card" required />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Card Number</Label>
+            <div className="relative">
+              <Input placeholder="0000 0000 0000 0000" required />
+              <CreditCard className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Expiry</Label>
+              <Input placeholder="MM/YY" required />
+            </div>
+            <div className="space-y-2">
+              <Label>CVC</Label>
+              <Input placeholder="123" required />
+            </div>
+          </div>
+
+          <Button
+            className="w-full bg-blue-600 hover:bg-blue-700 mt-4 text-white"
+            size="lg"
+            disabled={isLoading || amount === 0}
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              `Pay MVR ${amount.toLocaleString()}`
+            )}
+          </Button>
+        </form>
+      </CardContent>
+
+      <CardFooter className="justify-center border-t py-4 bg-muted/20">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Lock className="w-3 h-3" />
+          Payments processed securely via MockGateway
+        </div>
+      </CardFooter>
+    </Card>
+  )
+}

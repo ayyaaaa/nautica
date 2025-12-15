@@ -1,9 +1,7 @@
-'use client'
-
-import { useState, useEffect } from 'react'
 import { getMyServices, submitServiceRequest } from '../actions'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -12,75 +10,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
-import { Loader2, ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
-export default function NewServiceRequest() {
-  const [vessels, setVessels] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const router = useRouter()
+export default async function NewServicePage() {
+  const { vessels } = await getMyServices()
 
-  useEffect(() => {
-    // Load vessels so user can pick one
-    getMyServices().then((res) => {
-      setVessels(res.vessels)
-      setLoading(false)
-    })
-  }, [])
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setSubmitting(true)
-    const formData = new FormData(e.currentTarget)
-
-    const res = await submitServiceRequest(formData)
-    if (res.success) {
-      toast.success('Request Submitted', {
-        description: 'We will notify you when the bill is ready.',
-      })
-      router.push('/portal/services')
-    } else {
-      toast.error('Error', { description: 'Could not submit request.' })
-    }
-    setSubmitting(false)
-  }
-
-  if (loading)
+  if (vessels.length === 0) {
     return (
-      <div className="flex justify-center p-10">
-        <Loader2 className="animate-spin" />
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-bold">No Vessels Found</h2>
+        <p className="text-muted-foreground">
+          You need to register a vessel before requesting services.
+        </p>
       </div>
     )
+  }
+
+  async function submitAction(formData: FormData) {
+    'use server'
+    const res = await submitServiceRequest(formData)
+    if (res.success) {
+      redirect('/portal/services')
+    }
+  }
 
   return (
-    <div className="container max-w-lg py-10 mx-auto px-4">
-      <Button variant="ghost" className="mb-4 pl-0" asChild>
-        <Link href="/portal/services">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Services
-        </Link>
-      </Button>
-
+    <div className="max-w-2xl mx-auto py-10">
       <Card>
         <CardHeader>
-          <CardTitle>Request New Service</CardTitle>
-          <CardDescription>Select a vessel and service type.</CardDescription>
+          <CardTitle>New Service Request</CardTitle>
+          <CardDescription>Submit a request for harbor services.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={submitAction} className="space-y-6">
             <div className="space-y-2">
-              <Label>Select Vessel</Label>
+              <Label htmlFor="vessel">Select Vessel</Label>
               <Select name="vesselId" required>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose vessel..." />
+                  <SelectValue placeholder="Select a vessel" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vessels.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
+                  {vessels.map((v: any) => (
+                    <SelectItem key={v.id} value={v.id.toString()}>
                       {v.name} ({v.registrationNumber})
                     </SelectItem>
                   ))}
@@ -88,36 +60,43 @@ export default function NewServiceRequest() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Service Type</Label>
-              <Select name="serviceType" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cleaning">Cleaning</SelectItem>
-                  <SelectItem value="water">Water Supply</SelectItem>
-                  <SelectItem value="fuel">Fuel Supply</SelectItem>
-                  <SelectItem value="waste">Waste Disposal</SelectItem>
-                  <SelectItem value="electric">Electricity</SelectItem>
-                  <SelectItem value="loading">Loading / Unloading</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="type">Service Type</Label>
+                <Select name="serviceType" required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="water">Water Supply</SelectItem>
+                    <SelectItem value="fuel">Fuel Supply</SelectItem>
+                    <SelectItem value="cleaning">Cleaning</SelectItem>
+                    <SelectItem value="waste">Waste Disposal</SelectItem>
+                    <SelectItem value="electric">Electricity</SelectItem>
+                    <SelectItem value="loading">Loading / Unloading</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity (Units/Hours)</Label>
+                <Input type="number" name="quantity" min="1" defaultValue="1" required />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Quantity (Hours / Liters / Tons)</Label>
-              <Input type="number" name="quantity" min="1" defaultValue="1" required />
+              <Label htmlFor="notes">Notes / Instructions</Label>
+              <Textarea
+                name="notes"
+                placeholder="Specific time preference or location details..."
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label>Notes / Special Instructions</Label>
-              <Textarea name="notes" placeholder="E.g., Need it done before 5 PM..." />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" asChild>
+                <a href="/portal/services">Cancel</a>
+              </Button>
+              <Button type="submit">Submit Request</Button>
             </div>
-
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit Request'}
-            </Button>
           </form>
         </CardContent>
       </Card>

@@ -1,98 +1,106 @@
 import { getMyServices } from './actions'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Wrench, Plus, CreditCard, CheckCircle2, Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Plus, CreditCard, Clock, CheckCircle2, Wrench } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function ServicesPage() {
-  const { services, vessels } = await getMyServices()
+export default async function PortalServicesPage() {
+  const { services } = await getMyServices()
 
   return (
-    <div className="container max-w-4xl py-10 mx-auto px-4">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Service Requests</h1>
-          <p className="text-muted-foreground">Manage cleaning, fuel, and maintenance requests.</p>
+          <p className="text-muted-foreground">Request fuel, water, and other harbor services.</p>
         </div>
-        {vessels.length > 0 && (
-          <Button asChild>
-            <Link href="/portal/services/new">
-              <Plus className="mr-2 h-4 w-4" /> New Request
-            </Link>
-          </Button>
-        )}
+        <Button asChild>
+          <Link href="/portal/services/new">
+            <Plus className="mr-2 h-4 w-4" /> New Request
+          </Link>
+        </Button>
       </div>
 
-      <div className="grid gap-4">
-        {services.length === 0 ? (
-          <div className="text-center py-12 border rounded-lg bg-muted/10">
-            <Wrench className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
-            <h3 className="text-lg font-medium">No services found</h3>
-            <p className="text-muted-foreground mb-4">
-              Request a service for your vessel to get started.
-            </p>
-            <Button asChild variant="outline">
-              <Link href="/portal/services/new">Create Request</Link>
-            </Button>
-          </div>
-        ) : (
-          services.map((service: any) => (
-            <Card key={service.id} className="overflow-hidden">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary mt-1">
-                    <Wrench className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-bold capitalize">{service.serviceType}</h4>
-                      <StatusBadge status={service.status} />
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Vessel:{' '}
-                      <span className="font-medium text-foreground">{service.vessel.name}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(service.requestDate).toLocaleDateString()} • {service.quantity}{' '}
-                      Units
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 w-full sm:w-auto">
-                  <div className="text-right flex-1 sm:flex-none">
-                    <p className="text-xs text-muted-foreground uppercase">Total Cost</p>
-                    <p className="text-lg font-bold">MVR {service.totalCost?.toLocaleString()}</p>
-                  </div>
-
-                  {/* ACTION BUTTONS BASED ON STATUS */}
-                  {service.status === 'payment_pending' ? (
-                    <Button
-                      className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white animate-pulse"
-                      size="sm"
-                      asChild
-                    >
-                      {/* Reuse the pay page but maybe add logic to handle 'service' type payments later */}
-                      <Link href={`/portal/pay-service/${service.id}`}>
-                        <CreditCard className="mr-2 h-4 w-4" /> Pay Now
-                      </Link>
-                    </Button>
-                  ) : service.status === 'completed' ? (
-                    <Button variant="outline" size="sm" disabled>
-                      <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" /> Done
-                    </Button>
-                  ) : (
-                    <Button variant="secondary" size="sm" disabled>
-                      <Clock className="mr-2 h-4 w-4" /> Processing
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>History</CardTitle>
+          <CardDescription>Track the status of your service jobs.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Service</TableHead>
+                <TableHead>Vessel</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Est. Cost</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {services.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    No service requests found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                services.map((s: any) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium capitalize">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="h-4 w-4 text-muted-foreground" />
+                        {s.serviceType}
+                      </div>
+                      <span className="text-xs text-muted-foreground ml-6">
+                        {new Date(s.requestDate).toLocaleDateString()}
+                      </span>
+                    </TableCell>
+                    <TableCell>{s.vessel?.name}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={s.status} />
+                    </TableCell>
+                    <TableCell>MVR {s.totalCost?.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      {s.status === 'payment_pending' && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="bg-blue-600 hover:bg-blue-700"
+                          asChild
+                        >
+                          <Link href={`/portal/services/pay-service/${s.id}`}>
+                            <CreditCard className="mr-2 h-3 w-3" /> Pay Now
+                          </Link>
+                        </Button>
+                      )}
+                      {s.status === 'in_progress' && (
+                        <span className="text-xs text-blue-600 font-medium flex items-center justify-end">
+                          <Clock className="w-3 h-3 mr-1 animate-pulse" /> In Progress
+                        </span>
+                      )}
+                      {s.status === 'completed' && (
+                        <span className="text-xs text-green-600 font-medium flex items-center justify-end">
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> Done
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -100,15 +108,14 @@ export default async function ServicesPage() {
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     requested: 'bg-yellow-100 text-yellow-700',
-    payment_pending: 'bg-blue-100 text-blue-700 animate-pulse',
+    payment_pending: 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse',
     in_progress: 'bg-purple-100 text-purple-700',
     completed: 'bg-green-100 text-green-700',
     cancelled: 'bg-red-100 text-red-700',
   }
-  const label = status.replace('_', ' ')
   return (
-    <Badge className={`capitalize border-none shadow-none ${styles[status] || 'bg-gray-100'}`}>
-      {label}
+    <Badge className={`capitalize shadow-none border-0 ${styles[status]}`}>
+      {status.replace('_', ' ')}
     </Badge>
   )
 }

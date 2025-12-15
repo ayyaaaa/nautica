@@ -71,9 +71,10 @@ export interface Config {
     media: Media;
     businesses: Business;
     vessels: Vessel;
-    berths: Berth;
     services: Service;
     payments: Payment;
+    berths: Berth;
+    'berthing-slots': BerthingSlot;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -85,9 +86,10 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     businesses: BusinessesSelect<false> | BusinessesSelect<true>;
     vessels: VesselsSelect<false> | VesselsSelect<true>;
-    berths: BerthsSelect<false> | BerthsSelect<true>;
     services: ServicesSelect<false> | ServicesSelect<true>;
     payments: PaymentsSelect<false> | PaymentsSelect<true>;
+    berths: BerthsSelect<false> | BerthsSelect<true>;
+    'berthing-slots': BerthingSlotsSelect<false> | BerthingSlotsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -209,13 +211,20 @@ export interface Vessel {
   name: string;
   registrationNumber: string;
   registrationType: 'permanent' | 'temporary' | 'hourly';
-  status: 'pending' | 'payment_pending' | 'active' | 'rejected' | 'blacklisted';
+  /**
+   * Currently assigned slot
+   */
+  currentBerth?: (number | null) | BerthingSlot;
+  status: 'pending' | 'payment_pending' | 'active' | 'departed' | 'rejected' | 'blacklisted';
   finance?: {
+    /**
+     * Calculated upon departure or registration.
+     */
     fee?: number | null;
     paymentStatus?: ('unpaid' | 'paid') | null;
     paymentDate?: string | null;
     /**
-     * When the current payment period ends.
+     * For Permanent vessels.
      */
     nextPaymentDue?: string | null;
     transactionId?: string | null;
@@ -248,24 +257,17 @@ export interface Vessel {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "berths".
+ * via the `definition` "berthing-slots".
  */
-export interface Berth {
+export interface BerthingSlot {
   id: number;
-  vessel: number | Vessel;
-  planType: 'hourly' | 'daily' | 'monthly' | 'yearly';
-  status?: ('active' | 'completed' | 'cancelled') | null;
-  startTime: string;
-  endTime?: string | null;
-  location?: string | null;
-  billing?: {
-    /**
-     * The rate at the time of booking
-     */
-    rateApplied?: number | null;
-    totalCalculated?: number | null;
-    isPaid?: boolean | null;
-  };
+  /**
+   * Auto-generated (e.g., BAZA01)
+   */
+  name?: string | null;
+  zone: 'block_a_zone_a' | 'block_a_zone_b' | 'block_a_zone_c' | 'block_a_zone_d' | 'block_a_zone_e' | 'zone_t';
+  type: 'permanent' | 'temporary';
+  status?: ('available' | 'occupied' | 'maintenance') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -283,6 +285,7 @@ export interface Service {
    * Calculated based on Site Settings rates.
    */
   totalCost?: number | null;
+  paymentStatus?: ('unpaid' | 'paid' | 'waived') | null;
   requestDate: string;
   notes?: string | null;
   updatedAt: string;
@@ -303,6 +306,29 @@ export interface Payment {
   method?: ('cash' | 'bank_transfer' | 'online' | 'cheque') | null;
   paidAt?: string | null;
   proofOfPayment?: (number | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "berths".
+ */
+export interface Berth {
+  id: number;
+  vessel: number | Vessel;
+  planType: 'hourly' | 'daily' | 'monthly' | 'yearly';
+  status?: ('active' | 'completed' | 'cancelled') | null;
+  startTime: string;
+  endTime?: string | null;
+  assignedSlot: number | BerthingSlot;
+  billing?: {
+    /**
+     * The rate at the time of booking
+     */
+    rateApplied?: number | null;
+    totalCalculated?: number | null;
+    isPaid?: boolean | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -347,16 +373,20 @@ export interface PayloadLockedDocument {
         value: number | Vessel;
       } | null)
     | ({
-        relationTo: 'berths';
-        value: number | Berth;
-      } | null)
-    | ({
         relationTo: 'services';
         value: number | Service;
       } | null)
     | ({
         relationTo: 'payments';
         value: number | Payment;
+      } | null)
+    | ({
+        relationTo: 'berths';
+        value: number | Berth;
+      } | null)
+    | ({
+        relationTo: 'berthing-slots';
+        value: number | BerthingSlot;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -476,6 +506,7 @@ export interface VesselsSelect<T extends boolean = true> {
   name?: T;
   registrationNumber?: T;
   registrationType?: T;
+  currentBerth?: T;
   status?: T;
   finance?:
     | T
@@ -504,27 +535,6 @@ export interface VesselsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "berths_select".
- */
-export interface BerthsSelect<T extends boolean = true> {
-  vessel?: T;
-  planType?: T;
-  status?: T;
-  startTime?: T;
-  endTime?: T;
-  location?: T;
-  billing?:
-    | T
-    | {
-        rateApplied?: T;
-        totalCalculated?: T;
-        isPaid?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "services_select".
  */
 export interface ServicesSelect<T extends boolean = true> {
@@ -533,6 +543,7 @@ export interface ServicesSelect<T extends boolean = true> {
   status?: T;
   quantity?: T;
   totalCost?: T;
+  paymentStatus?: T;
   requestDate?: T;
   notes?: T;
   updatedAt?: T;
@@ -552,6 +563,39 @@ export interface PaymentsSelect<T extends boolean = true> {
   method?: T;
   paidAt?: T;
   proofOfPayment?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "berths_select".
+ */
+export interface BerthsSelect<T extends boolean = true> {
+  vessel?: T;
+  planType?: T;
+  status?: T;
+  startTime?: T;
+  endTime?: T;
+  assignedSlot?: T;
+  billing?:
+    | T
+    | {
+        rateApplied?: T;
+        totalCalculated?: T;
+        isPaid?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "berthing-slots_select".
+ */
+export interface BerthingSlotsSelect<T extends boolean = true> {
+  name?: T;
+  zone?: T;
+  type?: T;
+  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }

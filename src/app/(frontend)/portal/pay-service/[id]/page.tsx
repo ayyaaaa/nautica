@@ -1,63 +1,81 @@
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
-import { redirect } from 'next/navigation'
+import { getServiceDetails, processServicePayment } from '../../services/actions'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardFooter,
 } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Lock, ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
-import { ServicePaymentForm } from './payment-form' // <--- Import the Client Component
+import { Separator } from '@/components/ui/separator'
+import { CheckCircle2, AlertCircle } from 'lucide-react'
+import { redirect, notFound } from 'next/navigation'
 
-export default async function ServicePaymentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PayServicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const payload = await getPayload({ config: configPromise })
+  const service = await getServiceDetails(id)
 
-  // 1. Fetch service details SERVER-SIDE
-  const service = await payload.findByID({ collection: 'services', id })
+  if (!service) return notFound()
 
-  // 2. Security Check: Only allow payment if status is correct
-  if (!service || service.status !== 'payment_pending') {
+  // If already paid, redirect back
+  if (service.status !== 'payment_pending') {
     redirect('/portal/services')
   }
 
-  // 3. Render the Page
+  // Server Action for the button
+  async function payAction() {
+    'use server'
+    await processServicePayment(id)
+    redirect('/portal/services')
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md shadow-xl border-t-4 border-t-blue-600">
-        <CardHeader>
-          <div className="flex items-center justify-between mb-2">
-            <Button variant="ghost" size="sm" className="-ml-3" asChild>
-              <Link href="/portal/services">
-                <ArrowLeft className="w-4 h-4 mr-1" /> Cancel
-              </Link>
-            </Button>
-            <div className="flex items-center gap-2 text-blue-600">
-              <Lock className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Secure Payment</span>
+    <div className="max-w-md mx-auto py-20">
+      <Card className="border-blue-200 shadow-md">
+        <CardHeader className="bg-blue-50/50 pb-8 border-b">
+          <div className="flex justify-center mb-4">
+            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+              <CheckCircle2 className="h-6 w-6" />
             </div>
           </div>
-          <CardTitle>Service Invoice</CardTitle>
-          <CardDescription>Complete payment to start the service.</CardDescription>
+          <CardTitle className="text-center text-2xl">Approve Payment</CardTitle>
+          <CardDescription className="text-center">
+            Please confirm payment to start the service.
+          </CardDescription>
         </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">Service Type</span>
+            <span className="font-medium capitalize">{service.serviceType}</span>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">Vessel</span>
+            <span className="font-medium">{(service.vessel as any)?.name}</span>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">Quantity</span>
+            <span className="font-medium">{service.quantity} Units</span>
+          </div>
 
-        <CardContent>
-          {/* 4. Pass data to the Client Component */}
-          <ServicePaymentForm
-            id={id}
-            amount={service.totalCost || 0}
-            serviceName={service.serviceType}
-          />
+          <Separator className="my-2" />
+
+          <div className="flex justify-between items-center text-lg font-bold">
+            <span>Total Amount</span>
+            <span>MVR {service.totalCost?.toLocaleString()}</span>
+          </div>
+
+          <div className="bg-yellow-50 p-3 rounded-md border border-yellow-100 flex gap-2 text-xs text-yellow-800 mt-4">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <p>By clicking confirm, the amount will be deducted from your linked payment method.</p>
+          </div>
         </CardContent>
-        <CardFooter className="justify-center border-t py-4 bg-muted/20">
-          <p className="text-xs text-muted-foreground">
-            Payments processed securely via MockGateway
-          </p>
+        <CardFooter className="pt-2 pb-6">
+          <form action={payAction} className="w-full">
+            <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
+              Confirm & Pay MVR {service.totalCost?.toLocaleString()}
+            </Button>
+          </form>
         </CardFooter>
       </Card>
     </div>

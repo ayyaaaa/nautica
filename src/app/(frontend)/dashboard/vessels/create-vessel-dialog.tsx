@@ -20,19 +20,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Plus } from 'lucide-react'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Loader2, Plus, Check, ChevronsUpDown, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { createManualVessel, getOwners } from './actions'
+import { cn } from '@/lib/utils'
 
 export function CreateVesselDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // FIX 1: Update type to expect 'number' for ID
+  // Combobox State
+  const [openCombobox, setOpenCombobox] = useState(false)
   const [owners, setOwners] = useState<{ id: number; label: string }[]>([])
+  const [selectedOwnerId, setSelectedOwnerId] = useState<number | null>(null)
 
   useEffect(() => {
-    // This will now match the type returned by getOwners
     getOwners().then(setOwners)
   }, [])
 
@@ -48,6 +59,8 @@ export function CreateVesselDialog() {
         description: 'Sent to Approvals for Billing.',
       })
       setOpen(false)
+      // Reset form state
+      setSelectedOwnerId(null)
     } else {
       toast.error('Registration Failed', {
         description: res.error,
@@ -63,40 +76,78 @@ export function CreateVesselDialog() {
           <Plus className="mr-2 h-4 w-4" /> Register Manual Vessel
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] overflow-visible">
         <DialogHeader>
           <DialogTitle>Register New Vessel</DialogTitle>
           <DialogDescription>Assign a vessel to an owner manually.</DialogDescription>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+          {/* --- SEARCHABLE OWNER SELECTION --- */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="owner" className="text-right font-bold text-primary">
               Assign To
             </Label>
             <div className="col-span-3">
-              <Select name="ownerId" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Owner..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {owners.map((owner) => (
-                    // FIX 2: Convert number to string for the Select value
-                    <SelectItem key={owner.id} value={owner.id.toString()}>
-                      {owner.label}
-                    </SelectItem>
-                  ))}
-                  {owners.length === 0 && (
-                    <SelectItem value="none" disabled>
-                      No users found
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              {/* HIDDEN INPUT: This passes the value to the Server Action via FormData */}
+              <input type="hidden" name="ownerId" value={selectedOwnerId || ''} />
+
+              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCombobox}
+                    className="w-full justify-between"
+                  >
+                    {selectedOwnerId
+                      ? owners.find((owner) => owner.id === selectedOwnerId)?.label
+                      : 'Search name, email or ID card...'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search owner..." />
+                    <CommandList>
+                      <CommandEmpty>No owner found.</CommandEmpty>
+                      <CommandGroup>
+                        {owners.map((owner) => (
+                          <CommandItem
+                            key={owner.id}
+                            value={owner.label} // Search works on this value
+                            onSelect={() => {
+                              setSelectedOwnerId(owner.id)
+                              setOpenCombobox(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                selectedOwnerId === owner.id ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">
+                                {owner.label.split('|')[0]}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {owner.label.split('|').slice(1).join(' ')}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
           <div className="border-t my-2"></div>
 
+          {/* VESSEL DETAILS */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">
               Name
@@ -156,7 +207,7 @@ export function CreateVesselDialog() {
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !selectedOwnerId}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create & Send to Approval
             </Button>

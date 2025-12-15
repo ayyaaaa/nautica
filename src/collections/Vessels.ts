@@ -9,13 +9,8 @@ export const Vessels: CollectionConfig = {
   access: {
     read: () => true,
     create: () => true,
-    update: ({ req: { user } }) => {
-      // Allow admins to update status/finance
-      if (user && user.role === 'admin') return true
-      // Allow users to update their own vessel (e.g. if we add an edit feature later)
-      // For now, returning true is fine for MVP actions or you can restrict it:
-      return Boolean(user)
-    },
+    // Basic permissions: Admins or Users for their own vessels
+    update: ({ req: { user } }) => Boolean(user),
     delete: ({ req: { user } }) => Boolean(user && user.role === 'admin'),
   },
   fields: [
@@ -36,21 +31,32 @@ export const Vessels: CollectionConfig = {
       name: 'registrationType',
       type: 'select',
       options: [
-        { label: 'Permanent', value: 'permanent' },
-        { label: 'Day-to-Day', value: 'temporary' },
-        { label: 'Short Visit (Hourly)', value: 'hourly' }, // <--- NEW OPTION
+        { label: 'Permanent (Monthly)', value: 'permanent' },
+        { label: 'Day-to-Day (Temporary)', value: 'temporary' },
+        { label: 'Short Visit (Hourly)', value: 'hourly' },
       ],
       required: true,
     },
+    {
+      name: 'currentBerth',
+      type: 'relationship',
+      relationTo: 'berthing-slots',
+      admin: {
+        position: 'sidebar',
+        readOnly: true, // System managed
+        description: 'Currently assigned slot',
+      },
+    },
 
-    // --- STATUS FIELD UPDATE ---
+    // --- STATUS FIELD ---
     {
       name: 'status',
       type: 'select',
       options: [
         { label: 'Pending Review', value: 'pending' },
-        { label: 'Awaiting Payment', value: 'payment_pending' }, // <--- NEW OPTION
+        { label: 'Awaiting Payment', value: 'payment_pending' },
         { label: 'Active / Permitted', value: 'active' },
+        { label: 'Departed', value: 'departed' },
         { label: 'Rejected', value: 'rejected' },
         { label: 'Blacklisted', value: 'blacklisted' },
       ],
@@ -61,7 +67,7 @@ export const Vessels: CollectionConfig = {
       },
     },
 
-    // --- NEW FINANCE GROUP ---
+    // --- FINANCE GROUP ---
     {
       name: 'finance',
       type: 'group',
@@ -73,8 +79,11 @@ export const Vessels: CollectionConfig = {
         {
           name: 'fee',
           type: 'number',
-          label: 'Registration Fee (MVR)',
+          label: 'Outstanding Fee (MVR)',
           defaultValue: 0,
+          admin: {
+            description: 'Calculated upon departure or registration.',
+          },
         },
         {
           name: 'paymentStatus',
@@ -95,7 +104,7 @@ export const Vessels: CollectionConfig = {
           type: 'date',
           label: 'Subscription Expiry Date',
           admin: {
-            description: 'When the current payment period ends.',
+            description: 'For Permanent vessels.',
           },
         },
         {
@@ -105,8 +114,8 @@ export const Vessels: CollectionConfig = {
         },
       ],
     },
-    // -------------------------
 
+    // --- VESSEL DETAILS ---
     {
       name: 'vesselType',
       type: 'select',
@@ -133,7 +142,7 @@ export const Vessels: CollectionConfig = {
       required: true,
     },
 
-    // RELATIONSHIPS
+    // --- RELATIONSHIPS ---
     {
       name: 'owner',
       type: 'relationship',
@@ -146,16 +155,16 @@ export const Vessels: CollectionConfig = {
       relationTo: 'users',
     },
 
-    // DOCUMENTS
+    // --- DOCUMENTS ---
     {
       name: 'registrationDoc',
       type: 'upload',
       relationTo: 'media',
-      required: false, // Set to false to allow Day-to-Day registration
+      required: false,
       label: 'Vessel Registration Copy',
     },
 
-    // SPECS
+    // --- SPECS ---
     {
       name: 'specs',
       type: 'group',

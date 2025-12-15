@@ -1,4 +1,4 @@
-import { getPendingApplications } from './actions'
+import { getPendingVessels } from './actions' // Updated function name
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -12,13 +12,16 @@ import {
 } from '@/components/ui/table'
 import { FileText } from 'lucide-react'
 import Link from 'next/link'
-import { redirect } from 'next/navigation' // <--- Import redirect
-import { ApprovalActions } from './approval-actions'
+import { redirect } from 'next/navigation'
 
 // --- SECURITY IMPORTS ---
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { headers } from 'next/headers'
+
+// --- NEW COMPONENT IMPORTS ---
+import { ApproveDialog } from './approve-dialog'
+import { RejectButton } from './approval-actions'
 
 export default async function ApprovalsPage() {
   // 1. GET THE CURRENT USER
@@ -27,24 +30,20 @@ export default async function ApprovalsPage() {
   const { user } = await payload.auth({ headers: requestHeaders })
 
   // 2. SECURITY CHECK
-  // If no user, OR user is not an admin -> Redirect to Login
-  // Note: Adjust 'admin' to match whatever role name your main admin user has (e.g. 'admin' or check if collection is 'users')
   if (!user || (user as any).role !== 'admin') {
-    // If you are using the standard payload admin login:
     redirect('/admin/login')
   }
 
-  // 3. If passed, fetch the data
-  const applications = await getPendingApplications()
+  // 3. FETCH DATA (Using the new action that supports the Berthing flow)
+  const applications = await getPendingVessels()
 
   return (
     <div className="container py-10 mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Pending Approvals</h1>
-          <p className="text-muted-foreground">Review and manage vessel registration requests.</p>
+          <p className="text-muted-foreground">Review requests and assign berthing slots.</p>
         </div>
-        {/* Optional: Show who is logged in */}
         <div className="text-sm text-right text-muted-foreground">
           Logged in as: <span className="font-medium text-foreground">{user.email}</span>
         </div>
@@ -61,7 +60,7 @@ export default async function ApprovalsPage() {
               <TableRow>
                 <TableHead>Vessel Name</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Operator</TableHead>
+                <TableHead>Owner / Operator</TableHead>
                 <TableHead>Documents</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -86,17 +85,27 @@ export default async function ApprovalsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{vessel.vesselType}</Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="w-fit">
+                          {vessel.vesselType}
+                        </Badge>
                         <span className="text-xs text-muted-foreground capitalize">
                           {vessel.registrationType}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {typeof vessel.operator === 'object'
-                        ? vessel.operator?.fullName || vessel.operator?.email
-                        : 'Unknown'}
+                      {/* Display Owner (Fallback to Operator if needed) */}
+                      {vessel.owner ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm">
+                            {vessel.owner.fullName || vessel.owner.email}
+                          </span>
+                          <span className="text-xs text-muted-foreground">Owner</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Manual Reg.</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -123,8 +132,20 @@ export default async function ApprovalsPage() {
                         {vessel.status}
                       </Badge>
                     </TableCell>
+
+                    {/* --- UPDATED ACTIONS COLUMN --- */}
                     <TableCell className="text-right">
-                      <ApprovalActions id={vessel.id} />
+                      <div className="flex items-center justify-end gap-2">
+                        {/* 1. APPROVE (Opens Berthing Popup) */}
+                        <ApproveDialog
+                          vesselId={vessel.id}
+                          vesselName={vessel.name}
+                          regType={vessel.registrationType}
+                        />
+
+                        {/* 2. REJECT (Standard Button) */}
+                        <RejectButton id={vessel.id} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
