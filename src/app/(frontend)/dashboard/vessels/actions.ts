@@ -210,7 +210,12 @@ export async function processDeparture(vesselId: number) {
     })
 
     revalidatePath('/dashboard/vessels')
-    return { success: true }
+
+    // FIX: Include the 'message' property here
+    return {
+      success: true,
+      message: `Departure Processed. Bill: MVR ${finalBill.toLocaleString()}`,
+    }
   } catch (error: any) {
     console.error('Departure Error', error)
     return { success: false, error: error.message }

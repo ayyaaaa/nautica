@@ -1,9 +1,9 @@
-import * as migration_20251212_214946_initial_setup from './20251212_214946_initial_setup';
+import * as migration_20251215_162358_add_current_berth_to_vessels from './20251215_162358_add_current_berth_to_vessels';
 
 export const migrations = [
   {
-    up: migration_20251212_214946_initial_setup.up,
-    down: migration_20251212_214946_initial_setup.down,
-    name: '20251212_214946_initial_setup'
+    up: migration_20251215_162358_add_current_berth_to_vessels.up,
+    down: migration_20251215_162358_add_current_berth_to_vessels.down,
+    name: '20251215_162358_add_current_berth_to_vessels'
   },
 ];

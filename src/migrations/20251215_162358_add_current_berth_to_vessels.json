@@ -671,6 +671,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "current_berth_id": {
+          "name": "current_berth_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "enum_vessels_status",
@@ -801,6 +807,21 @@
           "method": "btree",
           "with": {}
         },
+        "vessels_current_berth_idx": {
+          "name": "vessels_current_berth_idx",
+          "columns": [
+            {
+              "expression": "current_berth_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "vessels_owner_idx": {
           "name": "vessels_owner_idx",
           "columns": [
@@ -878,6 +899,19 @@
         }
       },
       "foreignKeys": {
+        "vessels_current_berth_id_berthing_slots_id_fk": {
+          "name": "vessels_current_berth_id_berthing_slots_id_fk",
+          "tableFrom": "vessels",
+          "tableTo": "berthing_slots",
+          "columnsFrom": [
+            "current_berth_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "vessels_owner_id_users_id_fk": {
           "name": "vessels_owner_id_users_id_fk",
           "tableFrom": "vessels",
@@ -910,157 +944,6 @@
           "tableTo": "media",
           "columnsFrom": [
             "registration_doc_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.berths": {
-      "name": "berths",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "vessel_id": {
-          "name": "vessel_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "plan_type": {
-          "name": "plan_type",
-          "type": "enum_berths_plan_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "enum_berths_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'active'"
-        },
-        "start_time": {
-          "name": "start_time",
-          "type": "timestamp(3) with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "end_time": {
-          "name": "end_time",
-          "type": "timestamp(3) with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "location": {
-          "name": "location",
-          "type": "varchar",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "billing_rate_applied": {
-          "name": "billing_rate_applied",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "billing_total_calculated": {
-          "name": "billing_total_calculated",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "billing_is_paid": {
-          "name": "billing_is_paid",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp(3) with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp(3) with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "berths_vessel_idx": {
-          "name": "berths_vessel_idx",
-          "columns": [
-            {
-              "expression": "vessel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "berths_updated_at_idx": {
-          "name": "berths_updated_at_idx",
-          "columns": [
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "berths_created_at_idx": {
-          "name": "berths_created_at_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "berths_vessel_id_vessels_id_fk": {
-          "name": "berths_vessel_id_vessels_id_fk",
-          "tableFrom": "berths",
-          "tableTo": "vessels",
-          "columnsFrom": [
-            "vessel_id"
           ],
           "columnsTo": [
             "id"
@@ -1118,6 +1001,14 @@
           "type": "numeric",
           "primaryKey": false,
           "notNull": false
+        },
+        "payment_status": {
+          "name": "payment_status",
+          "type": "enum_services_payment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'unpaid'"
         },
         "request_date": {
           "name": "request_date",
@@ -1463,6 +1354,292 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.berths": {
+      "name": "berths",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vessel_id": {
+          "name": "vessel_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_type": {
+          "name": "plan_type",
+          "type": "enum_berths_plan_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_berths_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'active'"
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_slot_id": {
+          "name": "assigned_slot_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "billing_rate_applied": {
+          "name": "billing_rate_applied",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billing_total_calculated": {
+          "name": "billing_total_calculated",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billing_is_paid": {
+          "name": "billing_is_paid",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "berths_vessel_idx": {
+          "name": "berths_vessel_idx",
+          "columns": [
+            {
+              "expression": "vessel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "berths_assigned_slot_idx": {
+          "name": "berths_assigned_slot_idx",
+          "columns": [
+            {
+              "expression": "assigned_slot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "berths_updated_at_idx": {
+          "name": "berths_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "berths_created_at_idx": {
+          "name": "berths_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "berths_vessel_id_vessels_id_fk": {
+          "name": "berths_vessel_id_vessels_id_fk",
+          "tableFrom": "berths",
+          "tableTo": "vessels",
+          "columnsFrom": [
+            "vessel_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "berths_assigned_slot_id_berthing_slots_id_fk": {
+          "name": "berths_assigned_slot_id_berthing_slots_id_fk",
+          "tableFrom": "berths",
+          "tableTo": "berthing_slots",
+          "columnsFrom": [
+            "assigned_slot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.berthing_slots": {
+      "name": "berthing_slots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zone": {
+          "name": "zone",
+          "type": "enum_berthing_slots_zone",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "enum_berthing_slots_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_berthing_slots_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'available'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "berthing_slots_name_idx": {
+          "name": "berthing_slots_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "berthing_slots_updated_at_idx": {
+          "name": "berthing_slots_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "berthing_slots_created_at_idx": {
+          "name": "berthing_slots_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.payload_kv": {
       "name": "payload_kv",
       "schema": "",
@@ -1647,12 +1824,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "berths_id": {
-          "name": "berths_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "services_id": {
           "name": "services_id",
           "type": "integer",
@@ -1661,6 +1832,18 @@
         },
         "payments_id": {
           "name": "payments_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berths_id": {
+          "name": "berths_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berthing_slots_id": {
+          "name": "berthing_slots_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1772,21 +1955,6 @@
           "method": "btree",
           "with": {}
         },
-        "payload_locked_documents_rels_berths_id_idx": {
-          "name": "payload_locked_documents_rels_berths_id_idx",
-          "columns": [
-            {
-              "expression": "berths_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "payload_locked_documents_rels_services_id_idx": {
           "name": "payload_locked_documents_rels_services_id_idx",
           "columns": [
@@ -1807,6 +1975,36 @@
           "columns": [
             {
               "expression": "payments_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_berths_id_idx": {
+          "name": "payload_locked_documents_rels_berths_id_idx",
+          "columns": [
+            {
+              "expression": "berths_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_berthing_slots_id_idx": {
+          "name": "payload_locked_documents_rels_berthing_slots_id_idx",
+          "columns": [
+            {
+              "expression": "berthing_slots_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1884,19 +2082,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "payload_locked_documents_rels_berths_fk": {
-          "name": "payload_locked_documents_rels_berths_fk",
-          "tableFrom": "payload_locked_documents_rels",
-          "tableTo": "berths",
-          "columnsFrom": [
-            "berths_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "payload_locked_documents_rels_services_fk": {
           "name": "payload_locked_documents_rels_services_fk",
           "tableFrom": "payload_locked_documents_rels",
@@ -1916,6 +2101,32 @@
           "tableTo": "payments",
           "columnsFrom": [
             "payments_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_berths_fk": {
+          "name": "payload_locked_documents_rels_berths_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "berths",
+          "columnsFrom": [
+            "berths_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_berthing_slots_fk": {
+          "name": "payload_locked_documents_rels_berthing_slots_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "berthing_slots",
+          "columnsFrom": [
+            "berthing_slots_id"
           ],
           "columnsTo": [
             "id"
@@ -2383,6 +2594,7 @@
         "pending",
         "payment_pending",
         "active",
+        "departed",
         "rejected",
         "blacklisted"
       ]
@@ -2441,25 +2653,6 @@
         "Outboard"
       ]
     },
-    "public.enum_berths_plan_type": {
-      "name": "enum_berths_plan_type",
-      "schema": "public",
-      "values": [
-        "hourly",
-        "daily",
-        "monthly",
-        "yearly"
-      ]
-    },
-    "public.enum_berths_status": {
-      "name": "enum_berths_status",
-      "schema": "public",
-      "values": [
-        "active",
-        "completed",
-        "cancelled"
-      ]
-    },
     "public.enum_services_service_type": {
       "name": "enum_services_service_type",
       "schema": "public",
@@ -2483,6 +2676,15 @@
         "cancelled"
       ]
     },
+    "public.enum_services_payment_status": {
+      "name": "enum_services_payment_status",
+      "schema": "public",
+      "values": [
+        "unpaid",
+        "paid",
+        "waived"
+      ]
+    },
     "public.enum_payments_status": {
       "name": "enum_payments_status",
       "schema": "public",
@@ -2502,6 +2704,54 @@
         "online",
         "cheque"
       ]
+    },
+    "public.enum_berths_plan_type": {
+      "name": "enum_berths_plan_type",
+      "schema": "public",
+      "values": [
+        "hourly",
+        "daily",
+        "monthly",
+        "yearly"
+      ]
+    },
+    "public.enum_berths_status": {
+      "name": "enum_berths_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "public.enum_berthing_slots_zone": {
+      "name": "enum_berthing_slots_zone",
+      "schema": "public",
+      "values": [
+        "block_a_zone_a",
+        "block_a_zone_b",
+        "block_a_zone_c",
+        "block_a_zone_d",
+        "block_a_zone_e",
+        "zone_t"
+      ]
+    },
+    "public.enum_berthing_slots_type": {
+      "name": "enum_berthing_slots_type",
+      "schema": "public",
+      "values": [
+        "permanent",
+        "temporary"
+      ]
+    },
+    "public.enum_berthing_slots_status": {
+      "name": "enum_berthing_slots_status",
+      "schema": "public",
+      "values": [
+        "available",
+        "occupied",
+        "maintenance"
+      ]
     }
   },
   "schemas": {},
@@ -2514,6 +2764,6 @@
     "tables": {},
     "columns": {}
   },
-  "id": "08f5b3a6-6c62-4ab6-914e-b4d564ee5bc8",
+  "id": "c1242a61-5a4c-44ec-9186-63df27b30b33",
   "prevId": "00000000-0000-0000-0000-000000000000"
 }
