@@ -16,6 +16,7 @@ import {
 import { Ship, CheckCircle2, Clock, Wrench, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { RenewButton } from './renew-button'
+import { LiveRefresher } from '@/components/live-refresher'
 
 export default async function UserPortal() {
   const payload = await getPayload({ config: configPromise })
@@ -30,6 +31,7 @@ export default async function UserPortal() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      <LiveRefresher />
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
