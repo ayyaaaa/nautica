@@ -1,17 +1,21 @@
+// src/collections/Payments.ts
 import type { CollectionConfig } from 'payload'
 
 export const Payments: CollectionConfig = {
-  slug: 'payments',
+  slug: 'payments', // This matches the collection name used in actions
   admin: {
     useAsTitle: 'invoiceNumber',
-    defaultColumns: ['invoiceNumber', 'amount', 'status', 'method'],
+    defaultColumns: ['invoiceNumber', 'description', 'amount', 'status', 'paidAt'],
+  },
+  access: {
+    read: () => true,
+    create: () => true,
   },
   fields: [
     {
       name: 'invoiceNumber',
       type: 'text',
-      unique: true,
-      // You can add a hook here later to auto-generate "INV-001"
+      // We will generate this in the Server Action (e.g., INV-1002)
     },
     {
       name: 'vessel',
@@ -19,23 +23,27 @@ export const Payments: CollectionConfig = {
       relationTo: 'vessels',
       required: true,
     },
-    // Polymorphic-style references (Link to Berth OR Service)
+    {
+      name: 'description', // <--- ADDED: Makes table display much easier
+      type: 'text',
+      required: true,
+      label: 'Transaction Description',
+    },
+    // Polymorphic-style references
     {
       name: 'relatedBerth',
       type: 'relationship',
-      relationTo: 'berths',
-      label: 'Related Berth Booking',
+      relationTo: 'berths', // Ensure you have a 'berths' collection
       admin: {
-        condition: (data) => !data.relatedService, // Hide if service is selected
+        condition: (data) => !data.relatedService,
       },
     },
     {
       name: 'relatedService',
       type: 'relationship',
       relationTo: 'services',
-      label: 'Related Service Request',
       admin: {
-        condition: (data) => !data.relatedBerth, // Hide if berth is selected
+        condition: (data) => !data.relatedBerth,
       },
     },
     {
@@ -46,27 +54,25 @@ export const Payments: CollectionConfig = {
     {
       name: 'status',
       type: 'select',
-      options: ['unpaid', 'paid', 'overdue', 'cancelled'],
-      defaultValue: 'unpaid',
+      options: ['paid', 'void'], // Simplified for a history log
+      defaultValue: 'paid',
       required: true,
     },
     {
       name: 'method',
       type: 'select',
-      options: ['cash', 'bank_transfer', 'online', 'cheque'],
+      options: ['cash', 'transfer'],
+      required: true,
     },
     {
       name: 'paidAt',
       type: 'date',
-      admin: {
-        condition: (data) => data.status === 'paid',
-      },
+      required: true,
     },
     {
       name: 'proofOfPayment',
       type: 'upload',
       relationTo: 'media',
-      label: 'Receipt / Transfer Slip',
     },
   ],
 }

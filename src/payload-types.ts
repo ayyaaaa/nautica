@@ -221,6 +221,10 @@ export interface Vessel {
      * Calculated upon departure or registration.
      */
     fee?: number | null;
+    /**
+     * Snapshots the fee amount just before payment
+     */
+    lastPaidAmount?: number | null;
     paymentStatus?: ('unpaid' | 'paid') | null;
     paymentDate?: string | null;
     /**
@@ -299,12 +303,13 @@ export interface Payment {
   id: number;
   invoiceNumber?: string | null;
   vessel: number | Vessel;
+  description: string;
   relatedBerth?: (number | null) | Berth;
   relatedService?: (number | null) | Service;
   amount: number;
-  status: 'unpaid' | 'paid' | 'overdue' | 'cancelled';
-  method?: ('cash' | 'bank_transfer' | 'online' | 'cheque') | null;
-  paidAt?: string | null;
+  status: 'paid' | 'void';
+  method: 'cash' | 'transfer';
+  paidAt: string;
   proofOfPayment?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
@@ -512,6 +517,7 @@ export interface VesselsSelect<T extends boolean = true> {
     | T
     | {
         fee?: T;
+        lastPaidAmount?: T;
         paymentStatus?: T;
         paymentDate?: T;
         nextPaymentDue?: T;
@@ -556,6 +562,7 @@ export interface ServicesSelect<T extends boolean = true> {
 export interface PaymentsSelect<T extends boolean = true> {
   invoiceNumber?: T;
   vessel?: T;
+  description?: T;
   relatedBerth?: T;
   relatedService?: T;
   amount?: T;

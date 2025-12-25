@@ -22,6 +22,7 @@ import { headers } from 'next/headers'
 // --- NEW COMPONENT IMPORTS ---
 import { ApproveDialog } from './approve-dialog'
 import { RejectButton } from './approval-actions'
+import { LiveRefresher } from '@/components/live-refresher'
 
 export default async function ApprovalsPage() {
   // 1. GET THE CURRENT USER
@@ -39,6 +40,7 @@ export default async function ApprovalsPage() {
 
   return (
     <div className="container py-10 mx-auto">
+      <LiveRefresher />
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Pending Approvals</h1>

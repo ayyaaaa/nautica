@@ -86,6 +86,13 @@ export const Vessels: CollectionConfig = {
           },
         },
         {
+          name: 'lastPaidAmount',
+          type: 'number',
+          admin: {
+            description: 'Snapshots the fee amount just before payment',
+          },
+        },
+        {
           name: 'paymentStatus',
           type: 'select',
           options: [

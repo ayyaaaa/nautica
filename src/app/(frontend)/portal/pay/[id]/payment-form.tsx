@@ -12,18 +12,28 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CreditCard, Loader2, Lock, Ship } from 'lucide-react'
+import { CreditCard, Loader2, Lock } from 'lucide-react'
 import { toast } from 'sonner'
-import { processPayment } from '../../actions' // Check relative path
+import { processPayment } from './actions'
 
 interface PaymentFormProps {
   vesselName: string
   regNumber: string
-  amount: number
   vesselId: string
+  berthFee: number
+  servicesFee: number
+  totalAmount: number
+  serviceCount: number
 }
 
-export function PaymentForm({ vesselName, regNumber, amount, vesselId }: PaymentFormProps) {
+export function PaymentForm({
+  vesselName,
+  vesselId,
+  berthFee,
+  servicesFee,
+  totalAmount,
+  serviceCount,
+}: PaymentFormProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handlePay = async (e: React.FormEvent) => {
@@ -31,17 +41,13 @@ export function PaymentForm({ vesselName, regNumber, amount, vesselId }: Payment
     setIsLoading(true)
 
     try {
-      // 1. Simulate Network Delay (Mock Gateway)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // 2. Call Server Action
+      await new Promise((resolve) => setTimeout(resolve, 1500)) // Mock Gateway
       const result = await processPayment(vesselId)
 
       if (result.success) {
         toast.success('Payment Successful!', {
-          description: `Bill of MVR ${amount} cleared.`,
+          description: `Bill of MVR ${totalAmount.toLocaleString()} cleared.`,
         })
-        // Redirect back to dashboard
         window.location.href = '/portal'
       } else {
         toast.error('Payment Failed', { description: result.error })
@@ -58,27 +64,39 @@ export function PaymentForm({ vesselName, regNumber, amount, vesselId }: Payment
       <CardHeader className="bg-slate-50/50 border-b pb-6">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-xl text-blue-900">Secure Checkout</CardTitle>
-            <CardDescription>Complete payment for {vesselName}</CardDescription>
+            <CardTitle className="text-xl text-blue-900">Checkout</CardTitle>
+            <CardDescription>Payment for {vesselName}</CardDescription>
           </div>
           <div className="text-right">
             <span className="block text-xs text-muted-foreground uppercase font-bold">
               Total Due
             </span>
-            <span className="text-2xl font-bold text-slate-900">MVR {amount.toLocaleString()}</span>
+            <span className="text-2xl font-bold text-slate-900">
+              MVR {totalAmount.toLocaleString()}
+            </span>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="pt-6">
-        <form onSubmit={handlePay} className="space-y-4">
-          <div className="bg-blue-50 p-3 rounded-md flex items-center gap-3 text-sm text-blue-700 mb-4">
-            <Ship className="w-4 h-4" />
-            <span className="font-medium">
-              {vesselName} ({regNumber})
-            </span>
+        {/* Bill Breakdown */}
+        <div className="bg-slate-50 border rounded-md p-4 mb-6 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Berthing Fee</span>
+            <span className="font-medium">MVR {berthFee.toLocaleString()}</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Services ({serviceCount})</span>
+            <span className="font-medium">MVR {servicesFee.toLocaleString()}</span>
+          </div>
+          <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
+            <span>Total</span>
+            <span>MVR {totalAmount.toLocaleString()}</span>
+          </div>
+        </div>
 
+        <form onSubmit={handlePay} className="space-y-4">
+          {/* Form Fields (Card Name, Number, etc.) */}
           <div className="space-y-2">
             <Label>Cardholder Name</Label>
             <Input placeholder="Name on card" required />
@@ -106,12 +124,12 @@ export function PaymentForm({ vesselName, regNumber, amount, vesselId }: Payment
           <Button
             className="w-full bg-blue-600 hover:bg-blue-700 mt-4 text-white"
             size="lg"
-            disabled={isLoading || amount === 0}
+            disabled={isLoading || totalAmount === 0}
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              `Pay MVR ${amount.toLocaleString()}`
+              `Pay MVR ${totalAmount.toLocaleString()}`
             )}
           </Button>
         </form>
@@ -120,7 +138,7 @@ export function PaymentForm({ vesselName, regNumber, amount, vesselId }: Payment
       <CardFooter className="justify-center border-t py-4 bg-muted/20">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Lock className="w-3 h-3" />
-          Payments processed securely via MockGateway
+          Payments processed securely
         </div>
       </CardFooter>
     </Card>

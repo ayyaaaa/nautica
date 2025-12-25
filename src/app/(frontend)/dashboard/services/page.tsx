@@ -11,12 +11,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Wrench } from 'lucide-react'
+import { LiveRefresher } from '@/components/live-refresher'
 
 export default async function ServiceManagementPage() {
   const requests = await getServiceRequests()
 
   return (
     <div className="space-y-6">
+      <LiveRefresher />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Service Operations</h1>

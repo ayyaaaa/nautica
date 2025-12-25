@@ -12,12 +12,14 @@ import {
 } from '@/components/ui/table'
 import { Plus, CreditCard, Clock, CheckCircle2, Wrench } from 'lucide-react'
 import Link from 'next/link'
+import { LiveRefresher } from '@/components/live-refresher'
 
 export default async function PortalServicesPage() {
   const { services } = await getMyServices()
 
   return (
     <div className="space-y-6">
+      <LiveRefresher />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Service Requests</h1>

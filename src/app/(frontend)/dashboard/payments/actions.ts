@@ -7,25 +7,194 @@ import { revalidatePath } from 'next/cache'
 export type InvoiceItem = {
   id: string | number
   type: 'vessel' | 'service'
-  reference: string // Vessel Name
-  description: string // e.g. "Monthly Berthing" or "Water Supply"
+  reference: string
+  description: string
   amount: number
-  status: string
+  status: 'paid' | 'unpaid' | 'waived'
   date: string
-  subType?: string // permanent vs temp
+  method?: string
+  transactionId?: string
 }
 
-export async function getPaymentsData() {
+// --- 1. GET HISTORY ---
+export async function getAllTransactions() {
   const payload = await getPayload({ config: configPromise })
 
+  const { docs: payments } = await payload.find({
+    collection: 'payments',
+    limit: 100,
+    sort: '-paidAt',
+    depth: 1,
+  })
+
+  const history: InvoiceItem[] = payments.map((p: any) => ({
+    id: p.id,
+    type: p.relatedService ? 'service' : 'vessel',
+    reference: typeof p.vessel === 'object' ? p.vessel.name : 'Unknown Vessel',
+    description: p.description || 'Payment',
+    amount: p.amount,
+    status: 'paid',
+    date: p.paidAt,
+    transactionId: p.invoiceNumber,
+    method: p.method,
+  }))
+
+  return history
+}
+
+// --- 2. MARK AS PAID ---
+export async function markAsPaid(
+  id: string | number,
+  type: 'vessel' | 'service',
+  formData?: FormData | { method: 'cash' },
+) {
+  const payload = await getPayload({ config: configPromise })
+
+  try {
+    let transferSlipId = null
+    let paymentMethod = 'cash'
+
+    // 1. Handle File Upload
+    if (formData instanceof FormData) {
+      const file = formData.get('file') as File
+      if (file) {
+        paymentMethod = 'transfer'
+        const arrayBuffer = await file.arrayBuffer()
+        const buffer = Buffer.from(arrayBuffer)
+
+        const mediaUpload = await payload.create({
+          collection: 'media',
+          data: { alt: `Transfer Slip - ${type} ${id}` },
+          file: {
+            data: buffer,
+            name: file.name,
+            mimetype: file.type,
+            size: file.size,
+          },
+        })
+        transferSlipId = mediaUpload.id
+      }
+    }
+
+    // Variables for the Log
+    let paidAmount = 0
+    let vesselId: number | null = null
+    // FIX: Allow serviceId to be number
+    let serviceId: number | null = null
+    let description = ''
+
+    const invoiceNum = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`
+
+    // --- A. Process Vessel Payment ---
+    if (type === 'vessel') {
+      const vessel = await payload.findByID({ collection: 'vessels', id: id as number })
+      paidAmount = vessel.finance?.fee || 0
+      vesselId = vessel.id
+      description =
+        vessel.registrationType === 'permanent' ? 'Permit Renewal' : 'Departure Settlement'
+
+      // Mark linked services as paid
+      const unpaidServices = await payload.find({
+        collection: 'services',
+        where: {
+          and: [
+            { vessel: { equals: id } },
+            { status: { equals: 'completed' } },
+            { paymentStatus: { equals: 'unpaid' } },
+          ],
+        },
+      })
+
+      if (unpaidServices.docs.length > 0) {
+        await Promise.all(
+          unpaidServices.docs.map((s) =>
+            payload.update({ collection: 'services', id: s.id, data: { paymentStatus: 'paid' } }),
+          ),
+        )
+      }
+
+      // Reset Vessel Balance
+      const updates: any = {
+        status: vessel.registrationType === 'permanent' ? 'active' : 'departed',
+        finance: {
+          ...vessel.finance,
+          paymentStatus: 'paid',
+          paymentDate: new Date().toISOString(),
+          fee: 0,
+        },
+      }
+
+      if (vessel.registrationType === 'permanent') {
+        const now = new Date()
+        const nextDue = new Date(now)
+        nextDue.setFullYear(nextDue.getFullYear() + 1)
+        updates.finance.nextPaymentDue = nextDue.toISOString()
+      } else {
+        updates.currentBerth = null
+        if (vessel.currentBerth) {
+          const slotId =
+            typeof vessel.currentBerth === 'object' ? vessel.currentBerth.id : vessel.currentBerth
+          await payload.update({
+            collection: 'berthing-slots',
+            id: slotId,
+            data: { status: 'available' },
+          })
+        }
+      }
+
+      await payload.update({ collection: 'vessels', id: id as number, data: updates })
+
+      // --- B. Process Service Payment ---
+    } else {
+      // FIX: Cast id to number (assuming SQL DB)
+      const service = await payload.findByID({ collection: 'services', id: id as number })
+
+      paidAmount = service.totalCost || 0
+      serviceId = service.id
+      description = `${service.serviceType} (${service.quantity})`
+      vesselId = typeof service.vessel === 'object' ? service.vessel.id : service.vessel
+
+      await payload.update({
+        collection: 'services',
+        id: id as number,
+        data: { paymentStatus: 'paid' },
+      })
+    }
+
+    // --- C. CREATE THE PERMANENT LOG ENTRY ---
+    await payload.create({
+      collection: 'payments',
+      data: {
+        invoiceNumber: invoiceNum,
+        // FIX: Cast relationships to 'any' to bypass Strict TS Mismatch
+        vessel: vesselId as any,
+        description: description,
+        amount: paidAmount,
+        status: 'paid',
+        method: paymentMethod as 'cash' | 'transfer',
+        paidAt: new Date().toISOString(),
+        relatedService: (serviceId || null) as any,
+        proofOfPayment: transferSlipId,
+      },
+    })
+
+    revalidatePath('/dashboard/payments')
+    revalidatePath('/dashboard/vessels')
+    return { success: true }
+  } catch (error) {
+    console.error('Payment Error:', error)
+    return { success: false, error: 'Failed to update payment' }
+  }
+}
+
+// --- 3. GET PENDING (Standard) ---
+export async function getPendingPayments() {
+  const payload = await getPayload({ config: configPromise })
   const invoices: InvoiceItem[] = []
 
-  // 1. FETCH UNPAID VESSELS (Registration / Berthing Fees)
   const { docs: vessels } = await payload.find({
     collection: 'vessels',
-    where: {
-      status: { equals: 'payment_pending' },
-    },
+    where: { status: { equals: 'payment_pending' } },
     limit: 100,
   })
 
@@ -34,22 +203,17 @@ export async function getPaymentsData() {
       id: v.id,
       type: 'vessel',
       reference: v.name,
-      description:
-        v.registrationType === 'permanent'
-          ? 'New Registration / Renewal'
-          : 'Berthing Settlement (Exit)',
+      description: v.registrationType === 'permanent' ? 'Renewal Fee' : 'Departure Bill',
       amount: v.finance?.fee || 0,
       status: 'unpaid',
       date: v.updatedAt,
-      subType: v.registrationType,
     })
   })
 
-  // 2. FETCH UNPAID SERVICES
   const { docs: services } = await payload.find({
     collection: 'services',
     where: {
-      status: { equals: 'payment_pending' },
+      and: [{ status: { equals: 'completed' } }, { paymentStatus: { equals: 'unpaid' } }],
     },
     depth: 1,
     limit: 100,
@@ -59,7 +223,7 @@ export async function getPaymentsData() {
     invoices.push({
       id: s.id,
       type: 'service',
-      reference: s.vessel?.name || 'Unknown Vessel',
+      reference: s.vessel?.name || 'Unknown',
       description: `${s.serviceType} (${s.quantity})`,
       amount: s.totalCost || 0,
       status: 'unpaid',
@@ -67,59 +231,5 @@ export async function getPaymentsData() {
     })
   })
 
-  // 3. FETCH RECENTLY PAID HISTORY (Optional: Last 20 items)
-  // You can expand this logic later to fetch paid items for a 'History' tab
-
-  // Calculate Totals
-  const totalPending = invoices.reduce((sum, item) => sum + item.amount, 0)
-
-  return { invoices, totalPending }
-}
-
-// --- ACTION: MARK AS PAID ---
-export async function markAsPaid(id: string | number, type: 'vessel' | 'service') {
-  const payload = await getPayload({ config: configPromise })
-
-  try {
-    if (type === 'vessel') {
-      const vessel = await payload.findByID({ collection: 'vessels', id: id as number })
-
-      let nextStatus = 'active'
-
-      // LOGIC SPLIT:
-      // 1. Permanent Vessels: Payment = Renewal/Entry -> Stay Active
-      if (vessel.registrationType === 'permanent') {
-        nextStatus = 'active'
-      }
-      // 2. Temporary/Hourly Vessels: Payment = Exit Bill -> Mark Departed
-      else {
-        nextStatus = 'departed'
-      }
-
-      await payload.update({
-        collection: 'vessels',
-        id: id as number,
-        data: {
-          status: nextStatus as any,
-          // Safety: Ensure berth is cleared if they are departing
-          currentBerth: nextStatus === 'departed' ? null : vessel.currentBerth,
-          finance: {
-            ...vessel.finance,
-            paymentStatus: 'paid',
-            paymentDate: new Date().toISOString(),
-          },
-        },
-      })
-    }
-
-    // ... (keep service logic as is) ...
-
-    revalidatePath('/dashboard')
-    revalidatePath('/dashboard/payments')
-    revalidatePath('/dashboard/vessels')
-    return { success: true }
-  } catch (error) {
-    console.error(error)
-    return { success: false, error: 'Payment update failed' }
-  }
+  return invoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 }

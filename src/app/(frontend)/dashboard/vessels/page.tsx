@@ -9,7 +9,8 @@ import { VesselFilters } from './vessel-filters'
 import { CreateVesselDialog } from './create-vessel-dialog'
 import { DepartButton } from './depart-button'
 import { AssignBerthModal } from './assign-berth-modal'
-import { LiveRefresher } from '@/components/live-refresher' // <--- IMPORT THIS
+import { LiveRefresher } from '@/components/live-refresher'
+
 // 3. UI Elements
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,7 +84,7 @@ export default async function VesselsPage({
                   <TableHead>Vessel Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Owner</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Status / Due</TableHead>
                   <TableHead>Registration</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -131,8 +132,18 @@ export default async function VesselsPage({
                         )}
                       </TableCell>
 
+                      {/* --- UPDATED STATUS CELL WITH PRICE --- */}
                       <TableCell>
-                        <StatusBadge status={vessel.status} />
+                        <div className="flex flex-col gap-1 items-start">
+                          <StatusBadge status={vessel.status} />
+
+                          {/* Show Price if Money is Owed */}
+                          {vessel.calculatedTotalDue > 0 && (
+                            <span className="text-xs font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 flex items-center gap-1">
+                              MVR {vessel.calculatedTotalDue.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
 
                       <TableCell>

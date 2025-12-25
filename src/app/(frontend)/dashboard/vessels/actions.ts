@@ -42,6 +42,7 @@ export async function getVessels({
     query.and.push({ status: { equals: status } })
   }
 
+  // 1. Fetch Vessels
   const result = await payload.find({
     collection: 'vessels',
     where: query,
@@ -51,8 +52,42 @@ export async function getVessels({
     sort: '-createdAt',
   })
 
+  const vessels = result.docs
+
+  // 2. ENRICHMENT: Calculate Total Debt (Berth + Services)
+  const vesselIds = vessels.map((v) => v.id)
+
+  if (vesselIds.length > 0) {
+    // Fetch ALL unpaid, completed services for these vessels
+    const services = await payload.find({
+      collection: 'services',
+      where: {
+        and: [
+          { vessel: { in: vesselIds } },
+          { status: { equals: 'completed' } },
+          { paymentStatus: { equals: 'unpaid' } },
+        ],
+      },
+      limit: 500,
+    })
+
+    // Map services to their vessels
+    vessels.forEach((vessel: any) => {
+      const vesselServices = services.docs.filter(
+        (s: any) => (typeof s.vessel === 'object' ? s.vessel.id : s.vessel) === vessel.id,
+      )
+
+      const servicesTotal = vesselServices.reduce((sum, s) => sum + (s.totalCost || 0), 0)
+      const berthFee = vessel.finance?.fee || 0
+
+      // Attach the "Real" Total to the vessel object
+      vessel.calculatedTotalDue = berthFee + servicesTotal
+      vessel.unpaidServicesCount = vesselServices.length
+    })
+  }
+
   return {
-    docs: result.docs,
+    docs: vessels,
     totalPages: result.totalPages,
     page: result.page,
     totalDocs: result.totalDocs,
@@ -119,8 +154,29 @@ export async function processDeparture(vesselId: number) {
 
   try {
     const vessel = await payload.findByID({ collection: 'vessels', id: vesselId })
-    const settings = (await payload.findGlobal({ slug: 'site-settings' })) as any
 
+    // SAFETY CHECK: Prevent overwriting an existing bill if clicked twice
+    if (vessel.status !== 'active') {
+      return {
+        success: false,
+        error: `Cannot process departure. Vessel is currently '${vessel.status}'.`,
+      }
+    }
+
+    // 1. Fetch Rates from SiteSettings (with Fallbacks)
+    let settings: any = {}
+    try {
+      settings = await payload.findGlobal({ slug: 'site-settings' })
+    } catch (e) {
+      console.warn('Site settings not found, using defaults.')
+    }
+
+    // Default Rates if settings are missing
+    const hourlyRate = settings?.hourlyRate || 50
+    const dailyRate = settings?.dailyRate || 500
+    const taxPercentage = settings?.taxPercentage || 0
+
+    // 2. Find Active Berthing Session
     const berthRecords = await payload.find({
       collection: 'berths',
       where: {
@@ -132,6 +188,7 @@ export async function processDeparture(vesselId: number) {
     let berthingCost = 0
     let currentSession = null
 
+    // 3. Calculate Cost based on Duration & Plan Type
     if (berthRecords.docs.length > 0) {
       currentSession = berthRecords.docs[0]
       const startTime = new Date(currentSession.startTime).getTime()
@@ -139,23 +196,25 @@ export async function processDeparture(vesselId: number) {
       const hoursParked = diffMs / (1000 * 60 * 60)
 
       if (vessel.registrationType === 'hourly') {
-        berthingCost = Math.ceil(hoursParked) * (settings.hourlyRate || 50)
+        berthingCost = Math.ceil(hoursParked) * hourlyRate
       } else if (vessel.registrationType === 'permanent') {
-        berthingCost = 0
+        berthingCost = 0 // Permanent vessels pay monthly
       } else {
-        berthingCost = Math.ceil(hoursParked / 24) * (settings.dailyRate || 500)
+        // Default to Temporary (Daily)
+        berthingCost = Math.ceil(hoursParked / 24) * dailyRate
       }
     } else {
-      // Fallback for missing entry record
+      // Fallback: If no active berth found but vessel is 'active' (rare edge case)
       if (vessel.registrationType === 'temporary') {
-        berthingCost = settings.dailyRate || 500
+        berthingCost = dailyRate
       }
     }
 
-    const tax = berthingCost * ((settings.taxPercentage || 0) / 100)
+    // 4. Apply Tax (GST)
+    const tax = berthingCost * (taxPercentage / 100)
     const finalBill = berthingCost + tax
 
-    // Close Record or Create History
+    // 5. Close the Berthing Record (History)
     if (currentSession) {
       await payload.update({
         collection: 'berths',
@@ -163,10 +222,11 @@ export async function processDeparture(vesselId: number) {
         data: {
           endTime: new Date().toISOString(),
           status: 'completed',
-          billing: { totalCalculated: berthingCost },
+          billing: { totalCalculated: finalBill },
         },
       })
     } else {
+      // Create a "closing" record if one didn't exist
       const slotId =
         typeof vessel.currentBerth === 'object' ? vessel.currentBerth?.id : vessel.currentBerth
       await payload.create({
@@ -176,7 +236,7 @@ export async function processDeparture(vesselId: number) {
           startTime: new Date().toISOString(),
           endTime: new Date().toISOString(),
           status: 'completed',
-          billing: { totalCalculated: berthingCost },
+          billing: { totalCalculated: finalBill },
           planType: (vessel.registrationType || 'temporary') as any,
           assignedSlot: (slotId || null) as any,
         },
@@ -184,7 +244,7 @@ export async function processDeparture(vesselId: number) {
       })
     }
 
-    // Free Slot
+    // 6. Free up the Slot
     if (vessel.currentBerth) {
       const slotId =
         typeof vessel.currentBerth === 'object' ? vessel.currentBerth.id : vessel.currentBerth
@@ -195,7 +255,7 @@ export async function processDeparture(vesselId: number) {
       })
     }
 
-    // Update Vessel
+    // 7. Update Vessel Status & Bill
     await payload.update({
       collection: 'vessels',
       id: vesselId,
@@ -211,19 +271,17 @@ export async function processDeparture(vesselId: number) {
 
     revalidatePath('/dashboard/vessels')
 
-    // FIX: Include the 'message' property here
     return {
       success: true,
-      message: `Departure Processed. Bill: MVR ${finalBill.toLocaleString()}`,
+      message: `Bill generated: MVR ${finalBill.toLocaleString()}`,
     }
   } catch (error: any) {
     console.error('Departure Error', error)
-    return { success: false, error: error.message }
+    return { success: false, error: error.message || 'An unexpected error occurred.' }
   }
 }
 
 // --- 5. Re-Admit (Admins Only) ---
-
 export async function reAdmitVessel(id: number) {
   const payload = await getPayload({ config: configPromise })
 
@@ -231,15 +289,15 @@ export async function reAdmitVessel(id: number) {
     collection: 'vessels',
     id: id,
     data: {
-      status: 'pending', // 1. Send back to the "Waiting Line"
-      currentBerth: null, // 2. IMPORTANT: Remove the old berth link
-      //    (It might be taken by someone else now)
+      status: 'pending',
+      currentBerth: null,
     } as any,
   })
 
-  // 3. Admin must now go to "Pending" tab and assign a NEW slot
   revalidatePath('/dashboard/vessels')
 }
+
+// --- 6. Get Available Berths ---
 export async function getAvailableBerths() {
   const payload = await getPayload({ config: configPromise })
   const { docs } = await payload.find({
@@ -254,35 +312,34 @@ export async function getAvailableBerths() {
   }))
 }
 
-// --- 7. NEW: Assign Berth & Activate ---
+// --- 7. Assign Berth & Activate ---
 export async function assignBerth(vesselId: number, slotId: string) {
   const payload = await getPayload({ config: configPromise })
 
   try {
-    // 1. Fetch Vessel to get type
     const vessel = await payload.findByID({ collection: 'vessels', id: vesselId })
 
-    // 2. Create the "Active" Berth Log (Clock In)
+    // Create Active Log
     await payload.create({
       collection: 'berths',
       data: {
         vessel: vesselId,
         startTime: new Date().toISOString(),
-        status: 'active', // Clock starts ticking
+        status: 'active',
         assignedSlot: slotId as any,
         planType: (vessel.registrationType || 'temporary') as any,
       },
       draft: false,
     })
 
-    // 3. Mark Slot as Occupied
+    // Mark Slot Occupied
     await payload.update({
       collection: 'berthing-slots',
       id: slotId,
       data: { status: 'occupied' },
     })
 
-    // 4. Update Vessel to Active
+    // Activate Vessel
     await payload.update({
       collection: 'vessels',
       id: vesselId,
@@ -295,7 +352,6 @@ export async function assignBerth(vesselId: number, slotId: string) {
     revalidatePath('/dashboard/vessels')
     return { success: true }
   } catch (error) {
-    console.error('Assign Berth Error', error)
     return { success: false, error: 'Failed to assign berth.' }
   }
 }
