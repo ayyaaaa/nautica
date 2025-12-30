@@ -2,13 +2,12 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 
 // 1. Actions & Data Fetching
-import { getVessels, reAdmitVessel, getAvailableBerths } from './actions'
+import { getVessels, getAvailableBerths } from './actions'
 
 // 2. Components
 import { VesselFilters } from './vessel-filters'
 import { CreateVesselDialog } from './create-vessel-dialog'
-import { DepartButton } from './depart-button'
-import { AssignBerthModal } from './assign-berth-modal'
+import { VesselRowActions } from '@/components/vessel-row-actions' // <--- NEW COMPONENT
 import { LiveRefresher } from '@/components/live-refresher'
 
 // 3. UI Elements
@@ -23,15 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { MoreHorizontal, FileText, Download, RotateCw } from 'lucide-react'
 import Link from 'next/link'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 export default async function VesselsPage({
   searchParams,
@@ -50,6 +41,7 @@ export default async function VesselsPage({
   return (
     <div className="space-y-6">
       <LiveRefresher intervalMs={5000} />
+
       {/* PAGE HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -62,7 +54,6 @@ export default async function VesselsPage({
       </div>
 
       <Card className="border shadow-sm">
-        {/* Simplified Header showing total count */}
         <CardHeader className="pb-2 border-b bg-muted/10">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg font-semibold">Fleet Database</CardTitle>
@@ -132,7 +123,6 @@ export default async function VesselsPage({
                         )}
                       </TableCell>
 
-                      {/* --- UPDATED STATUS CELL WITH PRICE --- */}
                       <TableCell>
                         <div className="flex flex-col gap-1 items-start">
                           <StatusBadge status={vessel.status} />
@@ -152,61 +142,9 @@ export default async function VesselsPage({
                         </span>
                       </TableCell>
 
+                      {/* --- THE NEW ACTION COLUMN --- */}
                       <TableCell className="text-right">
-                        <div className="flex justify-end items-center gap-2">
-                          {/* 1. APPROVE & DOCK (Pending) */}
-                          {vessel.status === 'pending' && (
-                            <AssignBerthModal
-                              vesselId={vessel.id}
-                              vesselName={vessel.name}
-                              availableSlots={availableSlots}
-                            />
-                          )}
-
-                          {/* 2. DEPART (Active & Temporary) */}
-                          {vessel.status === 'active' &&
-                            vessel.registrationType !== 'permanent' && (
-                              <DepartButton id={vessel.id} name={vessel.name} />
-                            )}
-
-                          {/* 3. RE-ADMIT (Departed) */}
-                          {vessel.status === 'departed' && (
-                            <form action={reAdmitVessel.bind(null, vessel.id)}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 border-dashed text-muted-foreground hover:text-primary hover:border-primary"
-                              >
-                                <RotateCw className="mr-1 h-3 w-3" /> Re-Admit
-                              </Button>
-                            </form>
-                          )}
-
-                          {/* 4. MORE ACTIONS */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0 text-muted-foreground">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/collections/vessels/${vessel.id}`}>
-                                  <FileText className="mr-2 h-4 w-4" /> View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              {vessel.status === 'active' && (
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/portal/permit/${vessel.id}`} target="_blank">
-                                    <Download className="mr-2 h-4 w-4" /> Download Permit
-                                  </Link>
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                        <VesselRowActions vessel={vessel} availableSlots={availableSlots} />
                       </TableCell>
                     </TableRow>
                   ))
@@ -245,11 +183,10 @@ export default async function VesselsPage({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  // Styles updated to be cleaner and match general ShadCN vibes
   const styles: Record<string, string> = {
     active: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     pending: 'bg-amber-100 text-amber-700 border-amber-200',
-    payment_pending: 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse', // Pulse for urgent attention
+    payment_pending: 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse',
     rejected: 'bg-red-100 text-red-700 border-red-200',
     departed: 'bg-slate-100 text-slate-500 border-slate-200',
     blacklisted: 'bg-gray-900 text-gray-100 border-gray-700',
