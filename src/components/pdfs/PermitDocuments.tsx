@@ -71,12 +71,14 @@ const styles = StyleSheet.create({
   role: { fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase' },
 })
 
+// 1. Updated Interface to accept qrCodeBase64
 interface PermitDocumentProps {
   vessel: any
   permitId: string
-  qrCodeBase64: string // New Prop for base64 image
+  qrCodeBase64: string
 }
 
+// 2. Updated Component Definition
 export const PermitDocument = ({ vessel, permitId, qrCodeBase64 }: PermitDocumentProps) => {
   const issueDate = new Date().toLocaleDateString()
   const expiryDate = new Date()
@@ -135,7 +137,9 @@ export const PermitDocument = ({ vessel, permitId, qrCodeBase64 }: PermitDocumen
             {/* Footer */}
             <View style={styles.footer}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {/* 3. Use the Passed Prop Here */}
                 <Image src={qrCodeBase64} style={styles.qrImage} />
+
                 <View style={{ marginLeft: 10 }}>
                   <Text style={{ fontSize: 8, color: '#64748b' }}>VALIDITY PERIOD</Text>
                   <Text style={{ fontSize: 11, fontWeight: 'bold' }}>

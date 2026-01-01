@@ -2,7 +2,10 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getMyVessels } from './actions'
+import Link from 'next/link'
+import { Ship, CheckCircle2, Clock, Wrench } from 'lucide-react'
+
+// Components
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,20 +16,20 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/ui/card'
-import { Ship, CheckCircle2, Clock, Wrench, Plus } from 'lucide-react'
-import Link from 'next/link'
 import { RenewButton } from './renew-button'
 import { LiveRefresher } from '@/components/live-refresher'
+import { AddVesselDialog } from './add-vessel-dialog'
+import { getMyVessels } from './actions'
 
 export default async function UserPortal() {
   const payload = await getPayload({ config: configPromise })
   const headersList = await headers()
 
-  // 1. Fetch User (for the Welcome message)
+  // 1. Fetch User
   const { user } = await payload.auth({ headers: headersList })
   if (!user) return redirect('/admin/login')
 
-  // 2. Fetch Vessels (Returns the array directly)
+  // 2. Fetch Vessels
   const vessels = await getMyVessels()
 
   return (
@@ -41,17 +44,15 @@ export default async function UserPortal() {
           <p className="text-muted-foreground">Manage your fleet and harbor services.</p>
         </div>
         <div className="flex gap-2">
-          {/* THE MAIN NEW BUTTON */}
+          {/* Service Request Button */}
           <Button asChild>
             <Link href="/portal/services/new">
               <Wrench className="mr-2 h-4 w-4" /> Request Service
             </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link href="/register">
-              <Plus className="mr-2 h-4 w-4" /> New Vessel
-            </Link>
-          </Button>
+
+          {/* New Vessel Modal */}
+          <AddVesselDialog />
         </div>
       </div>
 
@@ -69,9 +70,9 @@ export default async function UserPortal() {
               <CardDescription className="max-w-xs mt-2">
                 You {"haven't"} registered any vessels yet.
               </CardDescription>
-              <Button asChild className="mt-4">
-                <Link href="/register">Register Now</Link>
-              </Button>
+              <div className="mt-4">
+                <AddVesselDialog />
+              </div>
             </Card>
           ) : (
             vessels.map((vessel: any) => {

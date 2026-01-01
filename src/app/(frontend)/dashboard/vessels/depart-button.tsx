@@ -64,19 +64,22 @@ export function DepartButton({ id, name }: { id: number; name: string }) {
             <AlertDialogTitle>Confirm Departure</AlertDialogTitle>
           </div>
 
-          <AlertDialogDescription className="space-y-3">
-            <p>
-              Are you sure you want to process the departure for{' '}
-              <span className="font-semibold text-foreground">{name}</span>?
-            </p>
-            <ul className="list-disc pl-5 space-y-1 text-sm bg-muted/50 p-3 rounded-md border">
-              <li>The berthing timer will stop immediately.</li>
-              <li>
-                The berth slot will be marked as{' '}
-                <span className="text-green-600 font-medium">Available</span>.
-              </li>
-              <li>A final bill will be calculated and assigned to the owner.</li>
-            </ul>
+          {/* FIX: Add 'asChild' and use a <div> to wrap block elements */}
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                Are you sure you want to process the departure for{' '}
+                <span className="font-semibold text-foreground">{name}</span>?
+              </p>
+              <ul className="list-disc pl-5 space-y-1 bg-muted/50 p-3 rounded-md border">
+                <li>The berthing timer will stop immediately.</li>
+                <li>
+                  The berth slot will be marked as{' '}
+                  <span className="text-green-600 font-medium">Available</span>.
+                </li>
+                <li>A final bill will be calculated and assigned to the owner.</li>
+              </ul>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
 
