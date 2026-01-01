@@ -50,10 +50,14 @@ export default function LoginPage() {
         })
 
         // 2. Redirect based on Role
-        // If Admin, go to Dashboard. If Operator, go to Portal.
-        if (data.user.role === 'admin') {
+        if (data.user.role === 'superadmin') {
+          // Super Admins go to the CMS Backend
+          router.push('/admin')
+        } else if (data.user.role === 'admin') {
+          // Normal Admins go to the Custom Dashboard
           router.push('/dashboard/approvals')
         } else {
+          // Operators/Owners go to the Portal
           router.push('/portal')
         }
 

@@ -138,7 +138,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
-  role: 'admin' | 'operator' | 'owner' | 'business_rep';
+  role: 'superadmin' | 'admin' | 'operator' | 'owner' | 'business_rep';
   fullName: string;
   idNumber: string;
   phone: string;

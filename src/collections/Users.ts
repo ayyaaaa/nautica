@@ -10,14 +10,15 @@ export const Users: CollectionConfig = {
 
   // --- SECURITY LAYER 1: COLLECTION ACCESS ---
   access: {
-    // 1. DASHBOARD ACCESS: Only admins can access the /admin panel
+    // 1. DASHBOARD ACCESS: Only SUPERADMIN can access the /admin panel
+    // 'admin' users will now be blocked from the CMS UI (must use your custom dashboard)
     admin: ({ req: { user } }) => {
-      return Boolean(user && user.role === 'admin')
+      return Boolean(user && user.role === 'superadmin')
     },
 
-    // 2. READ: Admins see everyone; Users see only themselves
+    // 2. READ: Superadmin & Admin see everyone; Users see only themselves
     read: ({ req: { user } }) => {
-      if (user && user.role === 'admin') return true
+      if (user && (user.role === 'superadmin' || user.role === 'admin')) return true
       return {
         id: {
           equals: user?.id,
@@ -28,9 +29,9 @@ export const Users: CollectionConfig = {
     // 3. CREATE: Allow anyone to register (public registration)
     create: () => true,
 
-    // 4. UPDATE: Admins update anyone; Users update only themselves
+    // 4. UPDATE: Superadmin & Admin update anyone; Users update only themselves
     update: ({ req: { user } }) => {
-      if (user && user.role === 'admin') return true
+      if (user && (user.role === 'superadmin' || user.role === 'admin')) return true
       return {
         id: {
           equals: user?.id,
@@ -38,8 +39,9 @@ export const Users: CollectionConfig = {
       }
     },
 
-    // 5. DELETE: Only admins can delete users
-    delete: ({ req: { user } }) => Boolean(user && user.role === 'admin'),
+    // 5. DELETE: Only Superadmin & Admin can delete users
+    delete: ({ req: { user } }) =>
+      Boolean(user && (user.role === 'superadmin' || user.role === 'admin')),
   },
 
   fields: [
@@ -47,6 +49,7 @@ export const Users: CollectionConfig = {
       name: 'role',
       type: 'select',
       options: [
+        { label: 'Super Admin', value: 'superadmin' }, // <--- New Role
         { label: 'Admin', value: 'admin' },
         { label: 'Vessel Operator', value: 'operator' },
         { label: 'Vessel Owner', value: 'owner' },
@@ -57,13 +60,12 @@ export const Users: CollectionConfig = {
 
       // --- SECURITY LAYER 2: FIELD ACCESS ---
       access: {
-        // Only an existing Admin can set the role to 'admin' (or anything else)
-        // If a public user registers, this check fails, so Payload ignores their input
-        // and falls back to defaultValue: 'operator'
-        create: ({ req: { user } }) => user?.role === 'admin',
+        // Only a Superadmin (or Admin) can set a role
+        // This prevents public users from registering as 'superadmin'
+        create: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
 
-        // Only an Admin can change a role later
-        update: ({ req: { user } }) => user?.role === 'admin',
+        // Only a Superadmin can change a role later (Higher security)
+        update: ({ req: { user } }) => user?.role === 'superadmin',
       },
     },
     {
