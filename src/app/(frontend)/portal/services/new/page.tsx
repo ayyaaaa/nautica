@@ -1,103 +1,41 @@
-import { getMyServices, submitServiceRequest } from '../actions'
-import { Button } from '@/components/ui/button'
+import { getServiceCatalog } from '../actions'
+import { getMyVessels } from '../../actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { redirect } from 'next/navigation'
+import { ServiceRequestForm } from './service-request-form'
+import { Ship } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export default async function NewServicePage() {
-  const { vessels } = await getMyServices()
+  // Fetch data in parallel
+  const [vessels, serviceTypes] = await Promise.all([getMyVessels(), getServiceCatalog()])
 
-  if (vessels.length === 0) {
+  if (!vessels || vessels.length === 0) {
     return (
-      <div className="p-10 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 space-y-4">
+        <div className="bg-muted p-4 rounded-full">
+          <Ship className="w-10 h-10 text-muted-foreground" />
+        </div>
         <h2 className="text-xl font-bold">No Vessels Found</h2>
-        <p className="text-muted-foreground">
-          You need to register a vessel before requesting services.
+        <p className="text-muted-foreground max-w-sm">
+          You need to register and have an active vessel approved before you can request services.
         </p>
+        <Button asChild>
+          <Link href="/portal">Register a Vessel</Link>
+        </Button>
       </div>
     )
   }
 
-  async function submitAction(formData: FormData) {
-    'use server'
-    const res = await submitServiceRequest(formData)
-    if (res.success) {
-      redirect('/portal/services')
-    }
-  }
-
   return (
     <div className="max-w-2xl mx-auto py-10">
-      <Card>
+      <Card className="shadow-lg border-t-4 border-t-primary">
         <CardHeader>
           <CardTitle>New Service Request</CardTitle>
-          <CardDescription>Submit a request for harbor services.</CardDescription>
+          <CardDescription>Select a service from our catalog.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={submitAction} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="vessel">Select Vessel</Label>
-              <Select name="vesselId" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a vessel" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vessels.map((v: any) => (
-                    <SelectItem key={v.id} value={v.id.toString()}>
-                      {v.name} ({v.registrationNumber})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Service Type</Label>
-                <Select name="serviceType" required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="water">Water Supply</SelectItem>
-                    <SelectItem value="fuel">Fuel Supply</SelectItem>
-                    <SelectItem value="cleaning">Cleaning</SelectItem>
-                    <SelectItem value="waste">Waste Disposal</SelectItem>
-                    <SelectItem value="electric">Electricity</SelectItem>
-                    <SelectItem value="loading">Loading / Unloading</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity (Units/Hours)</Label>
-                <Input type="number" name="quantity" min="1" defaultValue="1" required />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes / Instructions</Label>
-              <Textarea
-                name="notes"
-                placeholder="Specific time preference or location details..."
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" asChild>
-                <a href="/portal/services">Cancel</a>
-              </Button>
-              <Button type="submit">Submit Request</Button>
-            </div>
-          </form>
+          <ServiceRequestForm vessels={vessels} serviceTypes={serviceTypes} />
         </CardContent>
       </Card>
     </div>

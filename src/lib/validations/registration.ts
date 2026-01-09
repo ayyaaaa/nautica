@@ -10,6 +10,11 @@ const baseSchema = z.object({
   operatorId: z.string().min(3, 'ID Card or Passport number is required.'),
   operatorEmail: z.string().email('Please enter a valid email address.'),
   operatorPhone: z.string().min(7, 'Contact number is required.'),
+
+  // --- NEW: Password Fields ---
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  confirmPassword: z.string().min(1, 'Please confirm your password.'),
+
   operatorAddress: z.object({
     houseName: z.string().optional(),
     street: z.string().optional(),
@@ -17,7 +22,7 @@ const baseSchema = z.object({
     zipCode: z.string().optional(),
   }),
 
-  // FIX: Change string() to any() so it accepts File objects
+  // File objects
   operatorIdDoc: z.any().refine((file) => file, 'ID Card copy is required.'),
   operatorPhoto: z.any().refine((file) => file, 'Passport-size photo is required.'),
 
@@ -74,12 +79,20 @@ const baseSchema = z.object({
   fuelType: z.enum(['Diesel', 'Petrol']).optional(),
   numberOfEngines: z.coerce.number().optional(),
 
-  // FIX: Change to any() for file upload
   vesselRegDoc: z.any().optional(),
 })
 
 // --- 2. Refinement (The Logic Layer) ---
 export const registrationSchema = baseSchema.superRefine((data, ctx) => {
+  // LOGIC: Password Match
+  if (data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['confirmPassword'],
+      message: "Passwords don't match.",
+    })
+  }
+
   // LOGIC A: If representing a Business
   if (data.isBusiness) {
     if (!data.businessName)
@@ -103,7 +116,6 @@ export const registrationSchema = baseSchema.superRefine((data, ctx) => {
     if (!data.ownerPhone)
       ctx.addIssue({ code: 'custom', path: ['ownerPhone'], message: 'Owner Phone is required.' })
 
-    // Validate Owner Address
     if (!data.ownerAddress?.island) {
       ctx.addIssue({
         code: 'custom',
@@ -122,7 +134,6 @@ export const registrationSchema = baseSchema.superRefine((data, ctx) => {
     if (!data.fuelType)
       ctx.addIssue({ code: 'custom', path: ['fuelType'], message: 'Fuel Type is required.' })
 
-    // Strict check for document presence
     if (!data.vesselRegDoc) {
       ctx.addIssue({
         code: 'custom',

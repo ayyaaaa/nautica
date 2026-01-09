@@ -49,13 +49,15 @@ export async function submitRegistration(data: RegistrationFormValues, formData:
     let operatorUserId: string | number = ''
 
     if (existingUsers.totalDocs > 0) {
+      // If user exists, we use their ID. We DO NOT update their password here for security.
       operatorUserId = existingUsers.docs[0].id
     } else {
+      // User does NOT exist, create them with the provided password
       const newUser = await payload.create({
         collection: 'users',
         data: {
           email: data.operatorEmail,
-          password: 'temp-password-123',
+          password: data.password, // <--- Using the password from the form
           role: 'operator',
           fullName: data.operatorName,
           idNumber: data.operatorId,

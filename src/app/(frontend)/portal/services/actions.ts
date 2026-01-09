@@ -6,20 +6,34 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 
-// --- 1. Fetch User's Services ---
+// --- 1. Fetch Service Catalog ---
+// Used to populate the dropdown in the client form
+export async function getServiceCatalog() {
+  const payload = await getPayload({ config: configPromise })
+  const result = await payload.find({
+    collection: 'service-types',
+    limit: 100,
+    sort: 'name',
+  })
+  return result.docs
+}
+
+// --- 2. Fetch User's Services & Vessels ---
 export async function getMyServices() {
   const payload = await getPayload({ config: configPromise })
   const requestHeaders = await headers()
   const { user } = await payload.auth({ headers: requestHeaders })
 
-  if (!user) redirect('/portal/login') // Ensure redirection goes to portal login
+  if (!user) redirect('/portal/login')
 
   // Find vessels owned/operated by this user
+  // depth: 1 IS CRITICAL here so we get the 'currentSlot' object, not just an ID
   const { docs: vessels } = await payload.find({
     collection: 'vessels',
     where: {
       or: [{ 'owner.id': { equals: user.id } }, { 'operator.id': { equals: user.id } }],
     },
+    depth: 1,
   })
 
   const vesselIds = vessels.map((v) => v.id)
@@ -31,76 +45,69 @@ export async function getMyServices() {
     where: {
       vessel: { in: vesselIds },
     },
+    depth: 1, // Depth 1 ensures we see the Service Type name
     sort: '-createdAt',
   })
 
   return { services, vessels }
 }
 
-// --- 2. Submit New Request ---
+// --- 3. Submit New Request (UPDATED) ---
 export async function submitServiceRequest(formData: FormData) {
   const payload = await getPayload({ config: configPromise })
   const requestHeaders = await headers()
   const { user } = await payload.auth({ headers: requestHeaders })
 
-  if (!user) return { error: 'Unauthorized' }
+  if (!user) return { success: false, error: 'Unauthorized' }
 
-  const vesselIdString = formData.get('vesselId') as string
-  const type = formData.get('serviceType') as string
-  const quantity = Number(formData.get('quantity'))
-  const notes = formData.get('notes') as string
-
-  const settings = await payload.findGlobal({ slug: 'site-settings' })
-  const s = settings as any
-
-  let rate = 0
-  switch (type) {
-    case 'cleaning':
-      rate = s.cleaningRate || 150
-      break
-    case 'water':
-      rate = s.waterRate || 50
-      break
-    case 'fuel':
-      rate = s.fuelRate || 25
-      break
-    case 'waste':
-      rate = s.wasteRate || 200
-      break
-    case 'electric':
-      rate = s.electricRate || 5
-      break
-    case 'loading':
-      rate = s.loadingRate || 100
-      break
+  // Capture all fields including the new ones
+  const rawData = {
+    vessel: formData.get('vesselId'),
+    serviceType: formData.get('serviceType'),
+    calculationMode: formData.get('calculationMode'),
+    quantity: formData.get('quantity'),
+    totalCost: formData.get('totalCost'),
+    notes: formData.get('notes'),
+    serviceLocation: formData.get('serviceLocation'), // <--- NEW
+    preferredTime: formData.get('preferredTime'), // <--- NEW
+    contactNumber: formData.get('contactNumber'), // <--- NEW
   }
 
-  const estimatedCost = rate * quantity
-
   try {
+    const payloadData: any = {
+      vessel: Number(rawData.vessel),
+      serviceType: rawData.serviceType,
+      calculationMode: rawData.calculationMode,
+      status: 'requested',
+      paymentStatus: 'unpaid',
+      requestDate: new Date().toISOString(),
+      notes: rawData.notes,
+      serviceLocation: rawData.serviceLocation, // Save snapshot of location
+      preferredTime: rawData.preferredTime, // Save preferred time
+      contactNumber: formData.get('contactNumber'), // <--- NEW
+    }
+
+    // Pass the correct value based on mode
+    if (rawData.calculationMode === 'budget') {
+      payloadData.totalCost = Number(rawData.totalCost)
+    } else {
+      payloadData.quantity = Number(rawData.quantity)
+    }
+
     await payload.create({
       collection: 'services',
-      data: {
-        vessel: Number(vesselIdString),
-        serviceType: type as any,
-        status: 'requested',
-        paymentStatus: 'unpaid',
-        quantity: quantity,
-        totalCost: estimatedCost,
-        requestDate: new Date().toISOString(),
-        notes: notes,
-      },
+      data: payloadData,
     })
 
     revalidatePath('/portal/services')
     return { success: true }
-  } catch (e) {
-    console.error(e)
-    return { error: 'Failed to submit request' }
+  } catch (e: any) {
+    console.error('Submit Error:', e)
+    return { success: false, error: e.message || 'Failed to submit request' }
   }
 }
 
-// --- 3. Get Service Details (Required for Payment Page) ---
+// --- 4. Get Service Details ---
 export async function getServiceDetails(id: string) {
   const payload = await getPayload({ config: configPromise })
   const requestHeaders = await headers()
@@ -115,7 +122,7 @@ export async function getServiceDetails(id: string) {
       depth: 2,
     })
 
-    // Security Check: Verify ownership
+    // Security Check
     const vessel = typeof service.vessel === 'object' ? service.vessel : null
     const ownerId = typeof vessel?.owner === 'object' ? vessel.owner.id : vessel?.owner
     const operatorId = typeof vessel?.operator === 'object' ? vessel.operator?.id : vessel?.operator
@@ -130,7 +137,7 @@ export async function getServiceDetails(id: string) {
   }
 }
 
-// --- 4. Process Payment (Required for Payment Button) ---
+// --- 5. Process Payment ---
 export async function processServicePayment(id: string) {
   const payload = await getPayload({ config: configPromise })
 

@@ -75,6 +75,7 @@ export interface Config {
     payments: Payment;
     berths: Berth;
     'berthing-slots': BerthingSlot;
+    'service-types': ServiceType;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -90,6 +91,7 @@ export interface Config {
     payments: PaymentsSelect<false> | PaymentsSelect<true>;
     berths: BerthsSelect<false> | BerthsSelect<true>;
     'berthing-slots': BerthingSlotsSelect<false> | BerthingSlotsSelect<true>;
+    'service-types': ServiceTypesSelect<false> | ServiceTypesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -281,17 +283,42 @@ export interface BerthingSlot {
  */
 export interface Service {
   id: number;
-  serviceType: 'cleaning' | 'water' | 'fuel' | 'waste' | 'electric' | 'loading';
+  serviceType: number | ServiceType;
   vessel: number | Vessel;
-  status: 'requested' | 'payment_pending' | 'in_progress' | 'completed' | 'cancelled';
-  quantity: number;
   /**
-   * Calculated based on Site Settings rates.
+   * Choose how to calculate the order.
+   */
+  calculationMode?: ('quantity' | 'budget') | null;
+  /**
+   * The berthing slot of the vessel at the time of request.
+   */
+  serviceLocation?: string | null;
+  preferredTime: string;
+  contactNumber: string;
+  /**
+   * If "By Budget" is selected, this is auto-calculated.
+   */
+  quantity?: number | null;
+  /**
+   * If "By Quantity" is selected, this is auto-calculated.
    */
   totalCost?: number | null;
+  status?: ('requested' | 'payment_pending' | 'in_progress' | 'completed' | 'cancelled') | null;
   paymentStatus?: ('unpaid' | 'paid' | 'waived') | null;
-  requestDate: string;
+  requestDate?: string | null;
   notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "service-types".
+ */
+export interface ServiceType {
+  id: number;
+  name: string;
+  rate: number;
+  unit: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -392,6 +419,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'berthing-slots';
         value: number | BerthingSlot;
+      } | null)
+    | ({
+        relationTo: 'service-types';
+        value: number | ServiceType;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -546,9 +577,13 @@ export interface VesselsSelect<T extends boolean = true> {
 export interface ServicesSelect<T extends boolean = true> {
   serviceType?: T;
   vessel?: T;
-  status?: T;
+  calculationMode?: T;
+  serviceLocation?: T;
+  preferredTime?: T;
+  contactNumber?: T;
   quantity?: T;
   totalCost?: T;
+  status?: T;
   paymentStatus?: T;
   requestDate?: T;
   notes?: T;
@@ -608,6 +643,17 @@ export interface BerthingSlotsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "service-types_select".
+ */
+export interface ServiceTypesSelect<T extends boolean = true> {
+  name?: T;
+  rate?: T;
+  unit?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -659,13 +705,10 @@ export interface SiteSetting {
   dailyRate: number;
   monthlyRate: number;
   yearlyRate: number;
-  taxPercentage?: number | null;
-  cleaningRate?: number | null;
-  waterRate?: number | null;
-  fuelRate?: number | null;
-  wasteRate?: number | null;
-  electricRate?: number | null;
-  loadingRate?: number | null;
+  /**
+   * This percentage will be applied to all invoices.
+   */
+  taxPercentage: number;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -682,12 +725,6 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   monthlyRate?: T;
   yearlyRate?: T;
   taxPercentage?: T;
-  cleaningRate?: T;
-  waterRate?: T;
-  fuelRate?: T;
-  wasteRate?: T;
-  electricRate?: T;
-  loadingRate?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

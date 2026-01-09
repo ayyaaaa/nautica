@@ -3,12 +3,12 @@ import { CollectionConfig } from 'payload'
 export const Services: CollectionConfig = {
   slug: 'services',
   admin: {
-    useAsTitle: 'serviceType',
+    useAsTitle: 'id',
     defaultColumns: ['serviceType', 'vessel', 'status', 'totalCost', 'requestDate'],
   },
   access: {
     read: ({ req: { user } }) => {
-      if (user && user.role === 'admin') return true
+      if (user && (user.role === 'admin' || user.role === 'superadmin')) return true
       return Boolean(user)
     },
     create: () => true,
@@ -16,18 +16,13 @@ export const Services: CollectionConfig = {
     delete: ({ req: { user } }) => Boolean(user && user.role === 'admin'),
   },
   fields: [
+    // 1. Link to the Menu (Dynamic Service Types)
     {
       name: 'serviceType',
-      type: 'select',
-      options: [
-        { label: 'Cleaning', value: 'cleaning' },
-        { label: 'Water Supply', value: 'water' },
-        { label: 'Fuel Supply', value: 'fuel' },
-        { label: 'Waste Disposal', value: 'waste' },
-        { label: 'Electric Supply', value: 'electric' },
-        { label: 'Loading / Unloading', value: 'loading' },
-      ],
+      type: 'relationship',
+      relationTo: 'service-types',
       required: true,
+      hasMany: false,
     },
     {
       name: 'vessel',
@@ -36,33 +31,79 @@ export const Services: CollectionConfig = {
       required: true,
       hasMany: false,
     },
+    // 2. Calculation Mode (The Magic Switch)
     {
-      name: 'status',
-      type: 'select',
+      name: 'calculationMode',
+      type: 'radio',
       options: [
-        { label: 'Requested', value: 'requested' },
-        { label: 'Awaiting Payment', value: 'payment_pending' }, // <--- ADDED THIS
-        { label: 'In Progress', value: 'in_progress' },
-        { label: 'Completed', value: 'completed' },
-        { label: 'Cancelled', value: 'cancelled' },
+        { label: 'By Quantity (e.g. 10 Tons)', value: 'quantity' },
+        { label: 'By Budget (e.g. 500 MVR)', value: 'budget' },
       ],
-      defaultValue: 'requested',
-      required: true,
+      defaultValue: 'quantity',
+      admin: {
+        layout: 'horizontal',
+        description: 'Choose how to calculate the order.',
+      },
     },
+    {
+      name: 'serviceLocation',
+      type: 'text',
+      label: 'Service Location / Slot',
+      admin: {
+        description: 'The berthing slot of the vessel at the time of request.',
+      },
+    },
+    {
+      name: 'preferredTime',
+      type: 'date',
+      label: 'Preferred Service Time',
+      required: true,
+      admin: {
+        date: {
+          pickerAppearance: 'dayAndTime', // Allows picking time in Admin UI too
+        },
+      },
+    },
+    {
+      name: 'contactNumber',
+      type: 'text',
+      label: 'Contact Number',
+      required: true,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    // 3. Inputs (Quantity & Cost)
     {
       name: 'quantity',
       type: 'number',
-      label: 'Quantity (Hours/Liters/Tons)',
+      label: 'Quantity',
       defaultValue: 1,
-      required: true,
+      admin: {
+        // Show the unit dynamically (This is a visual helper label)
+        description: 'If "By Budget" is selected, this is auto-calculated.',
+      },
     },
     {
       name: 'totalCost',
       type: 'number',
       label: 'Total Cost (MVR)',
       admin: {
-        description: 'Calculated based on Site Settings rates.',
+        description: 'If "By Quantity" is selected, this is auto-calculated.',
       },
+    },
+    // ... Status fields
+    {
+      name: 'status',
+      type: 'select',
+      options: [
+        { label: 'Requested', value: 'requested' },
+        { label: 'Awaiting Payment', value: 'payment_pending' },
+        { label: 'In Progress', value: 'in_progress' },
+        { label: 'Completed', value: 'completed' },
+        { label: 'Cancelled', value: 'cancelled' },
+      ],
+      defaultValue: 'requested',
     },
     {
       name: 'paymentStatus',
@@ -73,52 +114,49 @@ export const Services: CollectionConfig = {
         { label: 'Paid', value: 'paid' },
         { label: 'Waived', value: 'waived' },
       ],
-      admin: {
-        position: 'sidebar',
-      },
     },
     {
       name: 'requestDate',
       type: 'date',
       defaultValue: () => new Date().toISOString(),
-      required: true,
     },
     {
       name: 'notes',
       type: 'textarea',
-      label: 'Operator Notes / Instructions',
     },
   ],
   hooks: {
     beforeChange: [
-      async ({ data, req }) => {
-        if (data.serviceType && data.quantity) {
-          const settings = await req.payload.findGlobal({ slug: 'site-settings' })
-          let rate = 0
+      async ({ data, req, operation }) => {
+        // Only run if service type is selected
+        if (data.serviceType) {
+          try {
+            // A. Fetch the Rate from the Linked Document
+            // (Payload relations are sometimes IDs, sometimes objects, safe check needed)
+            const serviceTypeId =
+              typeof data.serviceType === 'object' ? data.serviceType.id : data.serviceType
 
-          switch (data.serviceType) {
-            case 'cleaning':
-              rate = settings.cleaningRate || 150
-              break
-            case 'water':
-              rate = settings.waterRate || 50
-              break
-            case 'fuel':
-              rate = settings.fuelRate || 25
-              break
-            case 'waste':
-              rate = settings.wasteRate || 200
-              break
-            case 'electric':
-              rate = settings.electricRate || 5
-              break
-            case 'loading':
-              rate = settings.loadingRate || 100
-              break
-          }
+            const serviceDoc = await req.payload.findByID({
+              collection: 'service-types',
+              id: serviceTypeId,
+            })
 
-          if (!data.totalCost) {
-            data.totalCost = rate * data.quantity
+            const rate = serviceDoc.rate || 0
+
+            // B. Perform Calculation
+            if (rate > 0) {
+              if (data.calculationMode === 'budget' && data.totalCost) {
+                // REVERSE: 1000 MVR / 50 Rate = 20 Units
+                const calculatedQty = data.totalCost / rate
+                data.quantity = parseFloat(calculatedQty.toFixed(2))
+              } else if (data.quantity) {
+                // STANDARD: 20 Units * 50 Rate = 1000 MVR
+                // Default to standard if mode is quantity OR undefined
+                data.totalCost = data.quantity * rate
+              }
+            }
+          } catch (error) {
+            console.error('Calculation Error:', error)
           }
         }
         return data

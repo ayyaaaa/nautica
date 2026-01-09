@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, ArrowRight, ArrowLeft, CheckCircle2, UploadCloud } from 'lucide-react'
+import { Loader2, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 // UI Components
@@ -43,7 +43,6 @@ export default function RegistrationPage() {
 
   // Initialize Form
   const form = useForm<RegistrationFormValues>({
-    // FIX: Cast resolver to 'any' to avoid strict type version mismatches
     resolver: zodResolver(registrationSchema) as any,
     mode: 'onChange',
     defaultValues: {
@@ -54,6 +53,8 @@ export default function RegistrationPage() {
       operatorId: '',
       operatorPhone: '',
       operatorEmail: '',
+      password: '', // Default empty
+      confirmPassword: '', // Default empty
       operatorAddress: { island: '', houseName: '', street: '' },
       vesselName: '',
       vesselRegNo: '',
@@ -78,11 +79,13 @@ export default function RegistrationPage() {
         'operatorId',
         'operatorPhone',
         'operatorEmail',
+        'password', // Added validation trigger
+        'confirmPassword', // Added validation trigger
         'isBusiness',
         'isOwner',
         'operatorAddress.island',
         'operatorIdDoc',
-        'operatorPhoto', // Validate files are selected
+        'operatorPhoto',
         ...(isBusiness ? ['businessName', 'businessRegNo'] : []),
         ...(!isOwner ? ['ownerName', 'ownerId', 'ownerPhone'] : []),
       ]
@@ -113,24 +116,20 @@ export default function RegistrationPage() {
   const onSubmit: SubmitHandler<RegistrationFormValues> = async (data) => {
     setIsSubmitting(true)
     try {
-      // Create FormData to send files + text
       const formData = new FormData()
 
-      // Append Files manually (Zod just stores the File object in state)
+      // Append Files manually
       if (data.operatorIdDoc) formData.append('operatorIdDoc', data.operatorIdDoc as any)
       if (data.operatorPhoto) formData.append('operatorPhoto', data.operatorPhoto as any)
       if (data.vesselRegDoc) formData.append('vesselRegDoc', data.vesselRegDoc as any)
 
-      // Call Server Action
       const result = await submitRegistration(data, formData)
 
       if (result.success) {
         toast.success('Application Submitted Successfully!', {
           description: `Vessel ID: ${result.vesselId}. Your application is pending approval.`,
-          duration: 10000, // Show for 10s
+          duration: 10000,
         })
-        // Optional: Reset form or redirect
-        // form.reset();
       } else {
         toast.error('Submission Failed', {
           description: result.error || 'An unknown error occurred on the server.',
@@ -147,12 +146,10 @@ export default function RegistrationPage() {
 
   return (
     <div className="container max-w-3xl py-10 mx-auto relative">
-      {/* Dark Mode Toggle */}
       <div className="absolute right-4 top-4 md:right-0 md:top-3">
         <ModeToggle />
       </div>
 
-      {/* Progress Bar */}
       <div className="mb-8 mt-12 md:mt-3">
         <div className="flex justify-between mb-2 text-sm font-medium">
           <span className={step >= 1 ? 'text-primary' : 'text-muted-foreground'}>1. Operator</span>
@@ -208,7 +205,7 @@ export default function RegistrationPage() {
                               />
                               <label
                                 htmlFor="temp"
-                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer transition-all"
                               >
                                 <span className="mb-1 text-lg font-semibold">Day-to-Day</span>
                                 <span className="text-xs text-center text-muted-foreground">
@@ -224,7 +221,7 @@ export default function RegistrationPage() {
                               />
                               <label
                                 htmlFor="perm"
-                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer transition-all"
                               >
                                 <span className="mb-1 text-lg font-semibold">Permanent Slot</span>
                                 <span className="text-xs text-center text-muted-foreground">
@@ -232,12 +229,11 @@ export default function RegistrationPage() {
                                 </span>
                               </label>
                             </div>
-                            {/* NEW: Hourly */}
                             <div>
                               <RadioGroupItem value="hourly" id="hourly" className="sr-only peer" />
                               <label
                                 htmlFor="hourly"
-                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                                className="flex flex-col items-center justify-between p-4 border-2 rounded-md border-muted bg-popover hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer transition-all"
                               >
                                 <span className="mb-1 text-lg font-semibold">Short Visit</span>
                                 <span className="text-xs text-center text-muted-foreground">
@@ -309,6 +305,36 @@ export default function RegistrationPage() {
                     />
                   </div>
 
+                  {/* --- NEW PASSWORD FIELDS --- */}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 bg-secondary/10 p-4 rounded-md">
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="Min 8 characters" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="Retype password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={form.control}
                     name="operatorAddress.island"
@@ -338,9 +364,9 @@ export default function RegistrationPage() {
                                 type="file"
                                 accept="image/*,application/pdf"
                                 className="cursor-pointer file:text-primary"
-                                onChange={(event) => {
+                                onChange={(event) =>
                                   onChange(event.target.files && event.target.files[0])
-                                }}
+                                }
                               />
                             </div>
                           </FormControl>
@@ -360,9 +386,9 @@ export default function RegistrationPage() {
                               type="file"
                               accept="image/*"
                               className="cursor-pointer file:text-primary"
-                              onChange={(event) => {
+                              onChange={(event) =>
                                 onChange(event.target.files && event.target.files[0])
-                              }}
+                              }
                             />
                           </FormControl>
                           <FormMessage />
@@ -569,9 +595,9 @@ export default function RegistrationPage() {
                               type="file"
                               accept="application/pdf,image/*"
                               className="cursor-pointer file:text-primary border-primary/40 bg-primary/5"
-                              onChange={(event) => {
+                              onChange={(event) =>
                                 onChange(event.target.files && event.target.files[0])
-                              }}
+                              }
                             />
                           </FormControl>
                           <FormMessage />

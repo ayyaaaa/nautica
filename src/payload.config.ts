@@ -14,6 +14,7 @@ import { Payments } from './collections/Payments'
 import { SiteSettings } from './collections/SiteSettings'
 import { Services } from './collections/Services' // <--- IMPORT
 import { BerthingSlots } from './collections/BerthingSlots'
+import { ServiceTypes } from './collections/ServiceTypes'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
@@ -24,7 +25,17 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Businesses, Vessels, Services, Payments, Berths, BerthingSlots],
+  collections: [
+    Users,
+    Media,
+    Businesses,
+    Vessels,
+    Services,
+    Payments,
+    Berths,
+    BerthingSlots,
+    ServiceTypes,
+  ],
   globals: [SiteSettings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

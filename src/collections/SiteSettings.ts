@@ -5,12 +5,13 @@ export const SiteSettings: GlobalConfig = {
   label: 'Platform Settings & Rates',
   access: {
     read: () => true, // Publicly readable for price calculation
+    update: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
   },
   fields: [
     {
       type: 'tabs',
       tabs: [
-        // Tab 1: General Info
+        // Tab 1: General Info (Keep for platform-wide contacts)
         {
           label: 'General',
           fields: [
@@ -19,59 +20,63 @@ export const SiteSettings: GlobalConfig = {
             { name: 'supportEmail', type: 'email' },
           ],
         },
-        // Tab 2: Berthing Rates
+        // Tab 2: Berthing Rates & Tax (CRITICAL: Keep this)
         {
           label: 'Berthing Rates (MVR)',
-          fields: [
-            { name: 'hourlyRate', type: 'number', required: true, defaultValue: 50 },
-            { name: 'dailyRate', type: 'number', required: true, defaultValue: 500 },
-            { name: 'monthlyRate', type: 'number', required: true, defaultValue: 10000 },
-            { name: 'yearlyRate', type: 'number', required: true, defaultValue: 100000 },
-            { name: 'taxPercentage', type: 'number', label: 'GST (%)', defaultValue: 6 },
-          ],
-        },
-        // Tab 3: Service Rates (NEW)
-        {
-          label: 'Service Rates',
+          description: 'Set the base rates for vessel parking and applicable taxes.',
           fields: [
             {
-              name: 'cleaningRate',
-              type: 'number',
-              label: 'Cleaning (Per Hour)',
-              defaultValue: 150,
+              type: 'row', // Formatting for better UI
+              fields: [
+                {
+                  name: 'hourlyRate',
+                  type: 'number',
+                  required: true,
+                  defaultValue: 50,
+                  label: 'Hourly Rate',
+                },
+                {
+                  name: 'dailyRate',
+                  type: 'number',
+                  required: true,
+                  defaultValue: 500,
+                  label: 'Daily Rate',
+                },
+              ],
             },
             {
-              name: 'waterRate',
-              type: 'number',
-              label: 'Water (Per Ton)',
-              defaultValue: 50,
+              type: 'row',
+              fields: [
+                {
+                  name: 'monthlyRate',
+                  type: 'number',
+                  required: true,
+                  defaultValue: 10000,
+                  label: 'Monthly Rate',
+                },
+                {
+                  name: 'yearlyRate',
+                  type: 'number',
+                  required: true,
+                  defaultValue: 100000,
+                  label: 'Yearly Rate',
+                },
+              ],
             },
+            // GST Configuration
             {
-              name: 'fuelRate',
+              name: 'taxPercentage',
               type: 'number',
-              label: 'Fuel Surcharge (Per Liter)',
-              defaultValue: 25,
-            },
-            {
-              name: 'wasteRate',
-              type: 'number',
-              label: 'Waste Disposal (Flat Fee)',
-              defaultValue: 200,
-            },
-            {
-              name: 'electricRate',
-              type: 'number',
-              label: 'Electricity (Per Unit)',
-              defaultValue: 5,
-            },
-            {
-              name: 'loadingRate',
-              type: 'number',
-              label: 'Loading/Unloading (Per Hour)',
-              defaultValue: 100,
+              label: 'GST / Tax (%)',
+              defaultValue: 6,
+              required: true,
+              admin: {
+                description: 'This percentage will be applied to all invoices.',
+              },
             },
           ],
         },
+        // REMOVED: Tab 3 (Service Rates) -> Now handled by 'service-types' collection
       ],
     },
   ],
