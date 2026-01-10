@@ -47,7 +47,11 @@ export default async function PayServicePage({ params }: { params: Promise<{ id:
         <CardContent className="pt-6 space-y-4">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">Service Type</span>
-            <span className="font-medium capitalize">{service.serviceType}</span>
+            <span className="font-medium capitalize">
+              {typeof service.serviceType === 'object'
+                ? service.serviceType.name
+                : service.serviceType}
+            </span>
           </div>
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">Vessel</span>
