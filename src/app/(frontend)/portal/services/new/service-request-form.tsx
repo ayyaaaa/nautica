@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Loader2, MapPin, Phone } from 'lucide-react'
@@ -19,34 +19,71 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Card, CardContent } from '@/components/ui/card'
-import { DateTimePicker } from '@/components/ui/date-time-picker' // Ensure you created this file
+import { Separator } from '@/components/ui/separator'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 
-// Import Action
 import { submitServiceRequest } from '../actions'
+
+// Note: GST_RATE constant is removed because we get it via props now
 
 interface ServiceRequestFormProps {
   vessels: any[]
   serviceTypes: any[]
+  gstRate: number // <--- New Prop (e.g., 0.06)
 }
 
-export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestFormProps) {
+export function ServiceRequestForm({ vessels, serviceTypes, gstRate }: ServiceRequestFormProps) {
   const [selectedVesselId, setSelectedVesselId] = useState<string>('')
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
   const [calcMode, setCalcMode] = useState<'quantity' | 'budget'>('quantity')
-  const [date, setDate] = useState<Date | undefined>(undefined) // State for Custom Time Picker
+
+  const [inputValue, setInputValue] = useState<string>('')
+
+  const [date, setDate] = useState<Date | undefined>(undefined)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
-  // 1. Find full objects based on selection
-  const selectedService = serviceTypes.find((s) => s.id === selectedServiceId)
+  const selectedService = serviceTypes.find((s) => s.id.toString() === selectedServiceId)
   const selectedVessel = vessels.find((v) => v.id.toString() === selectedVesselId)
 
-  // 2. Extract Slot Name Safely
-  const currentSlotName = selectedVessel?.currentSlot
-    ? typeof selectedVessel.currentSlot === 'object'
-      ? selectedVessel.currentSlot.name
+  const currentSlotName = selectedVessel?.currentBerth
+    ? typeof selectedVessel.currentBerth === 'object'
+      ? selectedVessel.currentBerth.name
       : 'Unknown Slot'
     : 'Unassigned / At Sea'
+
+  // --- LIVE COST CALCULATION ---
+  const costDetails = useMemo(() => {
+    if (!selectedService || !inputValue) return null
+
+    const rate = selectedService.rate || 0
+    const val = parseFloat(inputValue)
+
+    if (isNaN(val) || val <= 0) return null
+
+    let quantity = 0
+    let subtotal = 0
+
+    if (calcMode === 'quantity') {
+      quantity = val
+      subtotal = quantity * rate
+    } else {
+      // Budget Mode
+      const totalInclusive = val
+      subtotal = totalInclusive / (1 + gstRate) // <--- Use Dynamic Rate
+      quantity = subtotal / rate
+    }
+
+    const gstAmount = subtotal * gstRate // <--- Use Dynamic Rate
+    const total = subtotal + gstAmount
+
+    return {
+      quantity,
+      subtotal,
+      gstAmount,
+      total,
+    }
+  }, [selectedService, inputValue, calcMode, gstRate]) // Add gstRate dependency
 
   async function handleSubmit(formData: FormData) {
     if (!date) {
@@ -58,9 +95,7 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
     const res = await submitServiceRequest(formData)
 
     if (res.success) {
-      toast.success('Request Submitted', {
-        description: 'The harbor team has been notified.',
-      })
+      toast.success('Request Submitted')
       router.push('/portal/services')
     } else {
       toast.error('Error', { description: res.error })
@@ -70,7 +105,7 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
 
   return (
     <form action={handleSubmit} className="space-y-6">
-      {/* --- SECTION 1: VESSEL & LOCATION --- */}
+      {/* VESSEL & LOCATION */}
       <div className="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="vessel">Select Vessel</Label>
@@ -88,7 +123,6 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
           </Select>
         </div>
 
-        {/* Auto-Location Display */}
         {selectedVessel && (
           <div className="flex items-center gap-3 p-3 text-sm rounded-md bg-blue-50/50 border border-blue-100 text-blue-900 animate-in fade-in slide-in-from-top-1">
             <div className="bg-blue-100 p-2 rounded-full">
@@ -100,28 +134,22 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
               </span>
               <span className="font-medium">{currentSlotName}</span>
             </div>
-            {/* Hidden Input to send to backend */}
             <input type="hidden" name="serviceLocation" value={currentSlotName} />
           </div>
         )}
       </div>
 
-      {/* --- SECTION 2: TIME PREFERENCE (CUSTOM COMPONENT) --- */}
+      {/* TIME PREFERENCE */}
       <div className="space-y-2">
         <Label>Preferred Time</Label>
-
-        {/* Custom Shadcn-style Picker */}
         <DateTimePicker date={date} setDate={setDate} />
-
-        {/* HIDDEN INPUT: Bridges React State -> FormData */}
         <input type="hidden" name="preferredTime" value={date ? date.toISOString() : ''} />
-
         <p className="text-[11px] text-muted-foreground">
           Services are typically provided within 2 hours of the requested time.
         </p>
       </div>
 
-      {/* --- SECTION 3: SERVICE TYPE --- */}
+      {/* SERVICE TYPE */}
       <div className="space-y-2">
         <Label htmlFor="type">Service Type</Label>
         <Select name="serviceType" required onValueChange={(val) => setSelectedServiceId(val)}>
@@ -130,14 +158,15 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
           </SelectTrigger>
           <SelectContent>
             {serviceTypes.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
+              <SelectItem key={s.id} value={s.id.toString()}>
                 {s.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-      {/* NEW: Contact Number */}
+
+      {/* CONTACT NUMBER */}
       <div className="space-y-2">
         <Label htmlFor="contactNumber">Site Contact Number</Label>
         <div className="relative">
@@ -150,15 +179,12 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
             className="pl-10"
           />
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Number to call when the service team arrives.
-        </p>
       </div>
 
-      {/* --- SECTION 4: CALCULATOR --- */}
+      {/* CALCULATOR */}
       {selectedService && (
         <Card className="bg-muted/30 border-dashed animate-in fade-in zoom-in-95">
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="pt-6 space-y-5">
             <div className="flex justify-between items-center text-sm">
               <span className="font-medium">Current Rate:</span>
               <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-bold">
@@ -166,7 +192,6 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
               </span>
             </div>
 
-            {/* Mode Switcher */}
             <div className="space-y-3">
               <Label className="text-xs uppercase text-muted-foreground font-semibold">
                 Order By
@@ -174,7 +199,10 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
               <RadioGroup
                 name="calculationMode"
                 defaultValue="quantity"
-                onValueChange={(v) => setCalcMode(v as any)}
+                onValueChange={(v) => {
+                  setCalcMode(v as any)
+                  setInputValue('')
+                }}
                 className="grid grid-cols-2 gap-4"
               >
                 <div>
@@ -204,7 +232,6 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
               </RadioGroup>
             </div>
 
-            {/* Dynamic Input */}
             <div className="space-y-2">
               <Label htmlFor="amount">
                 {calcMode === 'quantity'
@@ -215,22 +242,61 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
                 type="number"
                 name={calcMode === 'quantity' ? 'quantity' : 'totalCost'}
                 min="1"
-                defaultValue=""
                 required
                 placeholder={calcMode === 'quantity' ? 'e.g., 10' : 'e.g., 500'}
                 className="text-lg"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
               />
-              <p className="text-[11px] text-muted-foreground">
-                {calcMode === 'quantity'
-                  ? 'Total cost will be calculated automatically upon submission.'
-                  : `You will get approx. ${(1 / selectedService.rate).toFixed(2)} ${selectedService.unit}s per MVR.`}
-              </p>
             </div>
+
+            {/* LIVE SUMMARY */}
+            {costDetails && (
+              <div className="rounded-lg bg-background border p-4 space-y-2 text-sm animate-in slide-in-from-top-2 shadow-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>
+                    Subtotal ({costDetails.quantity.toFixed(1)} {selectedService.unit}s)
+                  </span>
+                  <span>
+                    {costDetails.subtotal.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    MVR
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-muted-foreground">
+                  {/* Dynamic Percentage Label */}
+                  <span>GST ({(gstRate * 100).toFixed(0)}%)</span>
+                  <span>
+                    {costDetails.gstAmount.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    MVR
+                  </span>
+                </div>
+
+                <Separator className="my-2" />
+
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-base">Total Payable</span>
+                  <span className="text-primary font-bold text-lg">
+                    {costDetails.total.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    MVR
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* --- SECTION 5: NOTES --- */}
+      {/* NOTES */}
       <div className="space-y-2">
         <Label htmlFor="notes">Notes / Instructions</Label>
         <Textarea
@@ -240,7 +306,7 @@ export function ServiceRequestForm({ vessels, serviceTypes }: ServiceRequestForm
         />
       </div>
 
-      {/* --- FOOTER --- */}
+      {/* FOOTER */}
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="ghost" asChild type="button">
           <a href="/portal/services">Cancel</a>

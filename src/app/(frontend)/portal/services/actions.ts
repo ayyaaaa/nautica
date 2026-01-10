@@ -33,7 +33,7 @@ export async function getMyServices() {
     where: {
       or: [{ 'owner.id': { equals: user.id } }, { 'operator.id': { equals: user.id } }],
     },
-    depth: 1,
+    depth: 1, // <--- This ensures 'currentBerth' comes back as an object { name: 'A-01', ... }
   })
 
   const vesselIds = vessels.map((v) => v.id)
@@ -76,7 +76,7 @@ export async function submitServiceRequest(formData: FormData) {
   try {
     const payloadData: any = {
       vessel: Number(rawData.vessel),
-      serviceType: rawData.serviceType,
+      serviceType: Number(rawData.serviceType),
       calculationMode: rawData.calculationMode,
       status: 'requested',
       paymentStatus: 'unpaid',
@@ -156,4 +156,10 @@ export async function processServicePayment(id: string) {
   } catch (e) {
     return { success: false, error: 'Payment failed' }
   }
+}
+
+export async function getSiteSettings() {
+  const payload = await getPayload({ config: configPromise })
+  const settings = await payload.findGlobal({ slug: 'site-settings' })
+  return settings
 }

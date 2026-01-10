@@ -1,5 +1,4 @@
-import { getServiceCatalog } from '../actions'
-import { getMyVessels } from '../../actions'
+import { getMyServices, getServiceCatalog, getSiteSettings } from '../actions' // Ensure getSiteSettings is imported
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ServiceRequestForm } from './service-request-form'
 import { Ship } from 'lucide-react'
@@ -7,9 +6,22 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 export default async function NewServicePage() {
-  // Fetch data in parallel
-  const [vessels, serviceTypes] = await Promise.all([getMyVessels(), getServiceCatalog()])
+  // 1. Fetch Vessels, Services, AND Settings in parallel
+  const [servicesData, serviceTypes, settings] = await Promise.all([
+    getMyServices(),
+    getServiceCatalog(),
+    getSiteSettings(),
+  ])
 
+  const vessels = servicesData.vessels
+
+  // 2. Extract & Normalize Tax Rate
+  // Your DB field is 'taxPercentage' (e.g. 6). We need 0.06 for math.
+  // We default to 6 if the field is empty.
+  const rawTax = (settings as any).taxPercentage ?? 6
+  const gstRate = rawTax / 100
+
+  // --- No Vessels State ---
   if (!vessels || vessels.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 space-y-4">
@@ -35,7 +47,8 @@ export default async function NewServicePage() {
           <CardDescription>Select a service from our catalog.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ServiceRequestForm vessels={vessels} serviceTypes={serviceTypes} />
+          {/* 3. Pass the dynamic rate to the form */}
+          <ServiceRequestForm vessels={vessels} serviceTypes={serviceTypes} gstRate={gstRate} />
         </CardContent>
       </Card>
     </div>

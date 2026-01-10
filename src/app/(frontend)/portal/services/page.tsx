@@ -56,48 +56,63 @@ export default async function PortalServicesPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                services.map((s: any) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-medium capitalize">
-                      <div className="flex items-center gap-2">
-                        <Wrench className="h-4 w-4 text-muted-foreground" />
-                        {s.serviceType}
-                      </div>
-                      <span className="text-xs text-muted-foreground ml-6">
-                        {new Date(s.requestDate).toLocaleDateString()}
-                      </span>
-                    </TableCell>
-                    <TableCell>{s.vessel?.name}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={s.status} />
-                    </TableCell>
-                    <TableCell>MVR {s.totalCost?.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      {s.status === 'payment_pending' && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="bg-blue-600 hover:bg-blue-700"
-                          asChild
-                        >
-                          <Link href={`/portal/services/pay-service/${s.id}`}>
-                            <CreditCard className="mr-2 h-3 w-3" /> Pay Now
-                          </Link>
-                        </Button>
-                      )}
-                      {s.status === 'in_progress' && (
-                        <span className="text-xs text-blue-600 font-medium flex items-center justify-end">
-                          <Clock className="w-3 h-3 mr-1 animate-pulse" /> In Progress
+                services.map((s: any) => {
+                  // --- FIX STARTS HERE ---
+                  // Extract the name safely. If it's an object, get .name. If it's a string, use it.
+                  const serviceName =
+                    typeof s.serviceType === 'object' ? s.serviceType.name : s.serviceType
+                  // --- FIX ENDS HERE ---
+
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-medium capitalize">
+                        <div className="flex items-center gap-2">
+                          <Wrench className="h-4 w-4 text-muted-foreground" />
+
+                          {/* USE THE VARIABLE HERE */}
+                          {serviceName}
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-6 block mt-1">
+                          {new Date(s.requestDate).toLocaleDateString()}
                         </span>
-                      )}
-                      {s.status === 'completed' && (
-                        <span className="text-xs text-green-600 font-medium flex items-center justify-end">
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Done
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+
+                      {/* Safe check for vessel name as well */}
+                      <TableCell>
+                        {typeof s.vessel === 'object' ? s.vessel.name : s.vessel || 'Unknown'}
+                      </TableCell>
+
+                      <TableCell>
+                        <StatusBadge status={s.status} />
+                      </TableCell>
+                      <TableCell>MVR {s.totalCost?.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        {s.status === 'payment_pending' && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            asChild
+                          >
+                            <Link href={`/portal/services/pay-service/${s.id}`}>
+                              <CreditCard className="mr-2 h-3 w-3" /> Pay Now
+                            </Link>
+                          </Button>
+                        )}
+                        {s.status === 'in_progress' && (
+                          <span className="text-xs text-blue-600 font-medium flex items-center justify-end">
+                            <Clock className="w-3 h-3 mr-1 animate-pulse" /> In Progress
+                          </span>
+                        )}
+                        {s.status === 'completed' && (
+                          <span className="text-xs text-green-600 font-medium flex items-center justify-end">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Done
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
