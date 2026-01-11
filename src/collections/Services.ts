@@ -16,7 +16,7 @@ export const Services: CollectionConfig = {
     delete: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
   },
   fields: [
-    // 1. Link to the Menu (Dynamic Service Types)
+    // 1. Link to the Menu (Dynami Service Types)
     {
       name: 'serviceType',
       type: 'relationship',
