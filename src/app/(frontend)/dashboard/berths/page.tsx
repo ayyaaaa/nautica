@@ -90,7 +90,7 @@ export default async function BerthsPage() {
               <CardDescription>Visual representation of all berthing zones.</CardDescription>
             </CardHeader>
             <CardContent className="p-6">
-              <BerthGrid zoneMap={zoneMap} />
+              <BerthGrid zoneMap={zoneMap} contracts={contracts} />{' '}
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,11 +1,47 @@
+'use client'
+
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Ship, Anchor, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { BerthDetailsDialog } from './berth-details-dialog'
 
-export function BerthGrid({ zoneMap }: { zoneMap: Record<string, any[]> }) {
+interface BerthGridProps {
+  zoneMap: Record<string, any[]>
+  contracts: any[]
+}
+
+export function BerthGrid({ zoneMap, contracts = [] }: BerthGridProps) {
+  const [selectedSlot, setSelectedSlot] = useState<any | null>(null)
+
   // Helper to make zone names readable
   const formatZone = (key: string) => {
     return key.replace(/_/g, ' ').toUpperCase()
+  }
+
+  // --- ROBUST FINDER FUNCTION ---
+  // This replaces the simple .find() to avoid "Data Mismatch" errors
+  const findActiveContract = (slotId: any) => {
+    if (!contracts) return undefined
+
+    return contracts.find((c) => {
+      // 1. Must be active
+      if (c.status !== 'active') return false
+
+      // 2. Safely get the Slot ID from the contract
+      // (Handles cases where Payload returns an object OR just an ID string)
+      const contractSlotId =
+        c.assignedSlot && typeof c.assignedSlot === 'object' ? c.assignedSlot.id : c.assignedSlot
+
+      // 3. Compare as Strings (Fixes 15 vs "15" mismatch)
+      return String(contractSlotId) === String(slotId)
+    })
+  }
+
+  // Handle slot click
+  const handleSlotClick = (slot: any) => {
+    const activeContract = findActiveContract(slot.id)
+    setSelectedSlot({ ...slot, activeContract })
   }
 
   return (
@@ -33,14 +69,19 @@ export function BerthGrid({ zoneMap }: { zoneMap: Record<string, any[]> }) {
                 const isOccupied = slot.status === 'occupied'
                 const isMaintenance = slot.status === 'maintenance'
 
+                // Use the new safe finder here too
+                const activeContract = findActiveContract(slot.id)
+                const vesselName = activeContract?.vessel?.name || 'Unknown Vessel'
+
                 return (
                   <div
                     key={slot.id}
+                    onClick={() => handleSlotClick(slot)}
                     className={`
-                        relative p-4 rounded-lg border flex flex-col justify-between h-36 transition-all duration-200 group
-                        ${isAvailable ? 'bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-md cursor-pointer' : ''}
+                        relative p-4 rounded-lg border flex flex-col justify-between h-36 transition-all duration-200 group cursor-pointer hover:scale-[1.02]
+                        ${isAvailable ? 'bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-md' : ''}
                         ${isOccupied ? 'bg-white border-rose-100 hover:border-rose-300 shadow-sm' : ''}
-                        ${isMaintenance ? 'bg-orange-50/50 border-orange-100' : ''}
+                        ${isMaintenance ? 'bg-orange-50/50 border-orange-100 hover:border-orange-300' : ''}
                     `}
                   >
                     {/* Top Right Status Dot */}
@@ -48,7 +89,7 @@ export function BerthGrid({ zoneMap }: { zoneMap: Record<string, any[]> }) {
                       <span
                         className={`text-xl font-bold font-mono tracking-tight ${isOccupied ? 'text-foreground' : 'text-foreground/80'}`}
                       >
-                        {slot.name}
+                        {slot.name.slice(-2)}
                       </span>
 
                       <div
@@ -62,7 +103,7 @@ export function BerthGrid({ zoneMap }: { zoneMap: Record<string, any[]> }) {
 
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">
-                        {slot.size}ft • {slot.type}
+                        {slot.type || 'Standard'}
                       </p>
                     </div>
 
@@ -71,10 +112,10 @@ export function BerthGrid({ zoneMap }: { zoneMap: Record<string, any[]> }) {
                       {isOccupied ? (
                         <div
                           className="flex items-center text-rose-700 font-medium text-xs truncate"
-                          title={slot.activeVesselName}
+                          title={vesselName}
                         >
                           <Ship className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-                          <span className="truncate">{slot.activeVesselName || 'Unknown'}</span>
+                          <span className="truncate">{vesselName}</span>
                         </div>
                       ) : isMaintenance ? (
                         <div className="flex items-center text-orange-700 font-medium text-xs">
@@ -93,6 +134,13 @@ export function BerthGrid({ zoneMap }: { zoneMap: Record<string, any[]> }) {
           </CardContent>
         </Card>
       ))}
+
+      {/* Popup Component */}
+      <BerthDetailsDialog
+        slot={selectedSlot}
+        open={!!selectedSlot}
+        onClose={() => setSelectedSlot(null)}
+      />
     </div>
   )
 }
