@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge'
 import { Banknote, Ship, Wrench, History, Clock, CreditCard } from 'lucide-react'
 import { LiveRefresher } from '@/components/live-refresher'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PaymentsPage() {
   const pending = await getPendingPayments()
   const history = await getAllTransactions()
