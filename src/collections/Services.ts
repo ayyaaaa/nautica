@@ -13,7 +13,7 @@ export const Services: CollectionConfig = {
     },
     create: () => true,
     update: ({ req: { user } }) => Boolean(user),
-    delete: ({ req: { user } }) => Boolean(user && user.role === 'admin'),
+    delete: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
   },
   fields: [
     // 1. Link to the Menu (Dynamic Service Types)

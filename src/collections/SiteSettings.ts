@@ -5,7 +5,7 @@ export const SiteSettings: GlobalConfig = {
   label: 'Platform Settings & Rates',
   access: {
     read: () => true, // Publicly readable for price calculation
-    update: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
+    update: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [
     {

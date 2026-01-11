@@ -11,7 +11,8 @@ export const BerthingSlots: CollectionConfig = {
     read: () => true,
     create: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
     update: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
-    delete: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
+    delete: ({ req: { user } }) =>
+      Boolean((user && user.role === 'superadmin') || user?.role === 'admin'),
   },
   hooks: {
     beforeChange: [

@@ -11,7 +11,7 @@ export const Vessels: CollectionConfig = {
     create: () => true,
     // Basic permissions: Admins or Users for their own vessels
     update: ({ req: { user } }) => Boolean(user),
-    delete: ({ req: { user } }) => Boolean(user && user.role === 'admin'),
+    delete: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
   },
   fields: [
     {

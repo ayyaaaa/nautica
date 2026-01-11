@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Anchor, CheckCircle2, XCircle, Clock, Map, FileText, Activity } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
 export default async function BerthsPage() {
   const { stats, zoneMap, contracts } = await getBerthData()
 

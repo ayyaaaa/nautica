@@ -8,8 +8,8 @@ export const ServiceTypes: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
-    update: ({ req: { user } }) => user?.role === 'superadmin' || user?.role === 'admin',
+    create: ({ req: { user } }) => user?.role === 'superadmin',
+    update: ({ req: { user } }) => user?.role === 'superadmin',
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [

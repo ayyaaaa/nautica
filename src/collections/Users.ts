@@ -18,7 +18,7 @@ export const Users: CollectionConfig = {
 
     // 2. READ: Superadmin & Admin see everyone; Users see only themselves
     read: ({ req: { user } }) => {
-      if (user && (user.role === 'superadmin' || user.role === 'admin')) return true
+      if (user && user.role === 'superadmin') return true
       return {
         id: {
           equals: user?.id,
@@ -31,7 +31,7 @@ export const Users: CollectionConfig = {
 
     // 4. UPDATE: Superadmin & Admin update anyone; Users update only themselves
     update: ({ req: { user } }) => {
-      if (user && (user.role === 'superadmin' || user.role === 'admin')) return true
+      if (user && user.role === 'superadmin') return true
       return {
         id: {
           equals: user?.id,
@@ -40,8 +40,7 @@ export const Users: CollectionConfig = {
     },
 
     // 5. DELETE: Only Superadmin & Admin can delete users
-    delete: ({ req: { user } }) =>
-      Boolean(user && (user.role === 'superadmin' || user.role === 'admin')),
+    delete: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
   },
 
   fields: [
