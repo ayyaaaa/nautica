@@ -10,13 +10,10 @@ export const Users: CollectionConfig = {
 
   // --- SECURITY LAYER 1: COLLECTION ACCESS ---
   access: {
-    // 1. DASHBOARD ACCESS: Only SUPERADMIN can access the /admin panel
-    // 'admin' users will now be blocked from the CMS UI (must use your custom dashboard)
     admin: ({ req: { user } }) => {
       return Boolean(user && user.role === 'superadmin')
     },
 
-    // 2. READ: Superadmin & Admin see everyone; Users see only themselves
     read: ({ req: { user } }) => {
       if (user && user.role === 'superadmin') return true
       return {
