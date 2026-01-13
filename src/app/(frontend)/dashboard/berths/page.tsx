@@ -1,5 +1,7 @@
 import { getBerthData } from './actions'
 import { BerthGrid } from './berth-grid'
+import { BerthFilters } from './berth-filters'
+import { ContractFilters } from './contract-filters' // Import the new component
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -14,8 +16,31 @@ import { Badge } from '@/components/ui/badge'
 import { Anchor, CheckCircle2, XCircle, Clock, Map, FileText, Activity } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
-export default async function BerthsPage() {
-  const { stats, zoneMap, contracts } = await getBerthData()
+
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export default async function BerthsPage(props: PageProps) {
+  const searchParams = await props.searchParams
+
+  // Map Filters
+  const mapSearch = typeof searchParams?.search === 'string' ? searchParams.search : undefined
+  const mapStatus = typeof searchParams?.status === 'string' ? searchParams.status : undefined
+
+  // Contract Filters
+  const contractSearch =
+    typeof searchParams?.cSearch === 'string' ? searchParams.cSearch : undefined
+  const contractStatus =
+    typeof searchParams?.cStatus === 'string' ? searchParams.cStatus : undefined
+
+  // Pass all filters to the backend
+  const { stats, zoneMap, tableContracts, mapContracts } = await getBerthData({
+    search: mapSearch,
+    status: mapStatus,
+    contractSearch: contractSearch,
+    contractStatus: contractStatus,
+  })
 
   return (
     <div className="space-y-6">
@@ -26,11 +51,8 @@ export default async function BerthsPage() {
           </h1>
           <p className="text-muted-foreground">Manage physical slot inventory and occupancy.</p>
         </div>
-
-        {/* Optional: Add a refresh or action button here if needed */}
       </div>
 
-      {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           label="Total Slots"
@@ -79,7 +101,7 @@ export default async function BerthsPage() {
           </TabsList>
         </div>
 
-        {/* TAB 1: LIVE MAP (The Visual Grid) */}
+        {/* TAB 1: LIVE MAP */}
         <TabsContent value="map" className="mt-0">
           <Card className="border shadow-sm">
             <CardHeader className="border-b bg-muted/10 pb-4">
@@ -89,8 +111,15 @@ export default async function BerthsPage() {
               </div>
               <CardDescription>Visual representation of all berthing zones.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6">
-              <BerthGrid zoneMap={zoneMap} contracts={contracts} />{' '}
+            <CardContent className="p-0">
+              {/* Map Filters */}
+              <div className="p-6 pb-2">
+                <BerthFilters />
+              </div>
+              <div className="px-6 pb-6">
+                {/* We pass 'mapContracts' here so dots work regardless of table filters */}
+                <BerthGrid zoneMap={zoneMap} contracts={mapContracts} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -106,6 +135,11 @@ export default async function BerthsPage() {
               <CardDescription>History of vessel stays and billing statuses.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              {/* NEW Contract Filters */}
+              <div className="p-6 pb-2 border-b bg-muted/5">
+                <ContractFilters />
+              </div>
+
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow>
@@ -118,14 +152,14 @@ export default async function BerthsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {contracts.length === 0 ? (
+                  {tableContracts.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No recent contracts found.
+                        No contracts found matching your filters.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    contracts.map((c: any) => (
+                    tableContracts.map((c: any) => (
                       <TableRow key={c.id} className="hover:bg-muted/5">
                         <TableCell className="font-medium pl-6">
                           <div className="flex items-center gap-2">

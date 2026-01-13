@@ -16,7 +16,6 @@ export const Services: CollectionConfig = {
     delete: ({ req: { user } }) => Boolean(user && user.role === 'superadmin'),
   },
   fields: [
-    // 1. Link to the Menu (Dynami Service Types)
     {
       name: 'serviceType',
       type: 'relationship',
@@ -31,7 +30,6 @@ export const Services: CollectionConfig = {
       required: true,
       hasMany: false,
     },
-    // 2. Calculation Mode (The Magic Switch)
     {
       name: 'calculationMode',
       type: 'radio',
@@ -60,7 +58,7 @@ export const Services: CollectionConfig = {
       required: true,
       admin: {
         date: {
-          pickerAppearance: 'dayAndTime', // Allows picking time in Admin UI too
+          pickerAppearance: 'dayAndTime',
         },
       },
     },
@@ -73,14 +71,12 @@ export const Services: CollectionConfig = {
         position: 'sidebar',
       },
     },
-    // 3. Inputs (Quantity & Cost)
     {
       name: 'quantity',
       type: 'number',
       label: 'Quantity',
       defaultValue: 1,
       admin: {
-        // Show the unit dynamically (This is a visual helper label)
         description: 'If "By Budget" is selected, this is auto-calculated.',
       },
     },
@@ -92,7 +88,6 @@ export const Services: CollectionConfig = {
         description: 'If "By Quantity" is selected, this is auto-calculated.',
       },
     },
-    // ... Status fields
     {
       name: 'status',
       type: 'select',
@@ -131,8 +126,7 @@ export const Services: CollectionConfig = {
         // Only run if service type is selected
         if (data.serviceType) {
           try {
-            // A. Fetch the Rate from the Linked Document
-            // (Payload relations are sometimes IDs, sometimes objects, safe check needed)
+            // 1. Fetch the Rate from the Linked Service Type
             const serviceTypeId =
               typeof data.serviceType === 'object' ? data.serviceType.id : data.serviceType
 
@@ -143,20 +137,52 @@ export const Services: CollectionConfig = {
 
             const rate = serviceDoc.rate || 0
 
-            // B. Perform Calculation
+            // 2. Fetch Tax Percentage from Global Settings
+            // We use try/catch specifically for this fetch to ensure it doesn't crash
+            let taxPercent = 6 // DEFAULT FALLBACK
+            try {
+              const settings = await req.payload.findGlobal({
+                slug: 'site-settings',
+              })
+              if (settings && typeof settings.taxPercentage === 'number') {
+                taxPercent = settings.taxPercentage
+              }
+            } catch (err) {
+              console.warn('⚠️ Could not fetch Site Settings, using default 6% tax.')
+            }
+
+            // If Tax is 0, assume it's unset and force 6 (since your frontend shows 6%)
+            if (taxPercent === 0) taxPercent = 6
+
+            const taxMultiplier = 1 + taxPercent / 100
+
+            // --- DEBUG LOGS (Check your Terminal!) ---
+            console.log(`\n🧮 CALCULATION DEBUG [${data.calculationMode}]`)
+            console.log(`Rate: ${rate} | Tax: ${taxPercent}% | Multiplier: ${taxMultiplier}`)
+            console.log(`Input -> Cost: ${data.totalCost}, Qty: ${data.quantity}`)
+
+            // 3. Perform Calculation
             if (rate > 0) {
               if (data.calculationMode === 'budget' && data.totalCost) {
-                // REVERSE: 1000 MVR / 50 Rate = 20 Units
-                const calculatedQty = data.totalCost / rate
+                // --- REVERSE MODE (Matches Frontend "By Budget") ---
+                // Logic: 100 MVR Total -> Remove Tax -> Divide by Rate
+                const subTotal = data.totalCost / taxMultiplier
+                const calculatedQty = subTotal / rate
+
                 data.quantity = parseFloat(calculatedQty.toFixed(2))
+                console.log(`✅ Calculated Qty: ${data.quantity}`)
               } else if (data.quantity) {
-                // STANDARD: 20 Units * 50 Rate = 1000 MVR
-                // Default to standard if mode is quantity OR undefined
-                data.totalCost = data.quantity * rate
+                // --- STANDARD MODE (Matches Frontend "By Quantity") ---
+                // Logic: 5.8 L * Rate -> Add Tax -> Total MVR
+                const subTotal = data.quantity * rate
+                const costWithTax = subTotal * taxMultiplier
+
+                data.totalCost = parseFloat(costWithTax.toFixed(2))
+                console.log(`✅ Calculated Cost: ${data.totalCost}`)
               }
             }
           } catch (error) {
-            console.error('Calculation Error:', error)
+            console.error('❌ Calculation Error:', error)
           }
         }
         return data
