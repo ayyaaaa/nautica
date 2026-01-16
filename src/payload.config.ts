@@ -15,6 +15,7 @@ import { SiteSettings } from './collections/SiteSettings'
 import { Services } from './collections/Services' // <--- IMPORT
 import { BerthingSlots } from './collections/BerthingSlots'
 import { ServiceTypes } from './collections/ServiceTypes'
+import { Invoices } from './collections/Invoices'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
@@ -35,6 +36,7 @@ export default buildConfig({
     Berths,
     BerthingSlots,
     ServiceTypes,
+    Invoices,
   ],
   globals: [SiteSettings],
   editor: lexicalEditor(),

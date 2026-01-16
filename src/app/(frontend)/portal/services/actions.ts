@@ -33,7 +33,7 @@ export async function getMyServices() {
     where: {
       or: [{ 'owner.id': { equals: user.id } }, { 'operator.id': { equals: user.id } }],
     },
-    depth: 1, // <--- This ensures 'currentBerth' comes back as an object { name: 'A-01', ... }
+    depth: 1, 
   })
 
   const vesselIds = vessels.map((v) => v.id)
@@ -52,7 +52,7 @@ export async function getMyServices() {
   return { services, vessels }
 }
 
-// --- 3. Submit New Request (UPDATED) ---
+// --- 3. Submit New Request ---
 export async function submitServiceRequest(formData: FormData) {
   const payload = await getPayload({ config: configPromise })
   const requestHeaders = await headers()
@@ -68,9 +68,9 @@ export async function submitServiceRequest(formData: FormData) {
     quantity: formData.get('quantity'),
     totalCost: formData.get('totalCost'),
     notes: formData.get('notes'),
-    serviceLocation: formData.get('serviceLocation'), // <--- NEW
-    preferredTime: formData.get('preferredTime'), // <--- NEW
-    contactNumber: formData.get('contactNumber'), // <--- NEW
+    serviceLocation: formData.get('serviceLocation'),
+    preferredTime: formData.get('preferredTime'),
+    contactNumber: formData.get('contactNumber'),
   }
 
   try {
@@ -82,9 +82,9 @@ export async function submitServiceRequest(formData: FormData) {
       paymentStatus: 'unpaid',
       requestDate: new Date().toISOString(),
       notes: rawData.notes,
-      serviceLocation: rawData.serviceLocation, // Save snapshot of location
-      preferredTime: rawData.preferredTime, // Save preferred time
-      contactNumber: formData.get('contactNumber'), // <--- NEW
+      serviceLocation: rawData.serviceLocation,
+      preferredTime: rawData.preferredTime,
+      contactNumber: rawData.contactNumber,
     }
 
     // Pass the correct value based on mode
@@ -137,29 +137,166 @@ export async function getServiceDetails(id: string) {
   }
 }
 
-// --- 5. Process Payment ---
-export async function processServicePayment(id: string) {
+// --- 5. Process Payment (UPDATED & FIXED) ---
+// --- 5. Process Payment (FIXED ID MATCHING) ---
+export async function processServicePayment(serviceId: string | number, method: 'cash' | 'transfer' = 'cash') {
   const payload = await getPayload({ config: configPromise })
+  
+  // Ensure ID is a number if your database uses numeric IDs
+  const numericServiceId = Number(serviceId)
+
+  console.log(`💰 Processing Payment for Service: ${numericServiceId} (${method})`)
 
   try {
+    // A. Update the Service Status
     await payload.update({
       collection: 'services',
-      id,
+      id: numericServiceId, // Pass ID as number
       data: {
         status: 'in_progress',
         paymentStatus: 'paid',
       } as any,
     })
 
+    // B. Find the Linked Invoice
+    // We try querying with BOTH the number and string format to be 100% safe
+    const { docs: invoices } = await payload.find({
+      collection: 'invoices',
+      where: {
+        or: [
+          { relatedService: { equals: numericServiceId } }, // Try Number
+          { relatedService: { equals: String(serviceId) } } // Try String
+        ]
+      },
+      limit: 1,
+    })
+
+    console.log(`🔍 Found ${invoices.length} invoices for this service.`)
+
+    // C. Update Invoice & Create Receipt
+    if (invoices.length > 0) {
+      const invoice = invoices[0]
+
+      // 1. Mark Invoice as Paid
+      await payload.update({
+        collection: 'invoices',
+        id: invoice.id,
+        data: {
+          status: 'paid',
+        },
+      })
+      console.log(`✅ Invoice ${invoice.invoiceNumber} marked as PAID.`)
+
+      // 2. Create Payment Record (Audit Log)
+      try {
+        await payload.create({
+          collection: 'payments',
+          data: {
+            invoiceNumber: invoice.invoiceNumber,
+            vessel: typeof invoice.vessel === 'object' ? invoice.vessel.id : invoice.vessel,
+            amount: invoice.grandTotal,
+            status: 'paid',
+            method: method,
+            paidAt: new Date().toISOString(),
+            description: `Payment for Service Req #${numericServiceId}`,
+            relatedService: numericServiceId,
+          },
+        })
+      } catch (err) {
+        console.error('⚠️ Could not create payment receipt:', err)
+      }
+    } else {
+      console.warn('⚠️ Service marked Paid, but NO INVOICE found to update.')
+    }
+
+    // D. Refresh Data
     revalidatePath('/portal/services')
+    revalidatePath(`/portal/services/pay-service/${serviceId}`)
+    
+    // Also refresh Admin Dashboard so you see it there immediately
+    revalidatePath('/dashboard/invoices') 
+    revalidatePath('/dashboard/services')
+
     return { success: true }
   } catch (e) {
-    return { success: false, error: 'Payment failed' }
+    console.error('❌ Payment Error:', e)
+    return { success: false, error: 'Payment processing failed' }
   }
 }
 
+// --- 6. Get Site Settings ---
 export async function getSiteSettings() {
   const payload = await getPayload({ config: configPromise })
   const settings = await payload.findGlobal({ slug: 'site-settings' })
   return settings
+}
+// --- 6. Update Service Request (Editable by User) ---
+export async function updateServiceRequest(serviceId: string, formData: FormData) {
+  const payload = await getPayload({ config: configPromise })
+  const requestHeaders = await headers()
+  const { user } = await payload.auth({ headers: requestHeaders })
+
+  if (!user) return { success: false, error: 'Unauthorized' }
+
+  try {
+    // 1. Fetch existing service to check permissions & status
+    const service = await payload.findByID({
+      collection: 'services',
+      id: serviceId,
+      depth: 1
+    })
+
+    // Security: Ensure User Owns the Vessel
+    const vessel = typeof service.vessel === 'object' ? service.vessel : null
+    const ownerId = typeof vessel?.owner === 'object' ? vessel.owner.id : vessel?.owner
+    const operatorId = typeof vessel?.operator === 'object' ? vessel.operator?.id : vessel?.operator
+
+    if (ownerId !== user.id && operatorId !== user.id) {
+      return { success: false, error: 'You do not have permission to edit this request.' }
+    }
+
+    // Logic: Only allow editing if status is 'requested'
+    if (service.status !== 'requested') {
+      return { success: false, error: 'Cannot edit. Request is already being processed.' }
+    }
+
+    // 2. Prepare Update Data
+    const rawData = {
+      calculationMode: formData.get('calculationMode'),
+      quantity: formData.get('quantity'),
+      totalCost: formData.get('totalCost'),
+      notes: formData.get('notes'),
+      preferredTime: formData.get('preferredTime'),
+      contactNumber: formData.get('contactNumber'),
+    }
+
+    const updates: any = {
+      calculationMode: rawData.calculationMode,
+      notes: rawData.notes,
+      preferredTime: rawData.preferredTime,
+      contactNumber: rawData.contactNumber,
+    }
+
+    // Handle Budget vs Quantity logic
+    if (rawData.calculationMode === 'budget') {
+      updates.totalCost = Number(rawData.totalCost)
+      updates.quantity = null // Reset quantity so hook recalculates it
+    } else {
+      updates.quantity = Number(rawData.quantity)
+      updates.totalCost = null // Reset cost so hook recalculates it
+    }
+
+    // 3. Perform Update
+    await payload.update({
+      collection: 'services',
+      id: serviceId,
+      data: updates,
+    })
+
+    revalidatePath('/portal/services')
+    return { success: true }
+  } catch (e: any) {
+    console.error('Update Error:', e)
+    return { success: false, error: e.message || 'Failed to update request' }
+  }
 }

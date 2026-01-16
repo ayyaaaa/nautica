@@ -4,6 +4,13 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { revalidatePath } from 'next/cache'
 
+// --- HELPER: Invoice ID Generator ---
+function generateInvoiceId() {
+  const date = new Date().toISOString().slice(2, 10).replace(/-/g, '')
+  const random = Math.floor(1000 + Math.random() * 9000)
+  return `INV-${date}-${random}`
+}
+
 // --- 1. Fetch List of Users (For Dropdown) ---
 export async function getOwners() {
   const payload = await getPayload({ config: configPromise })
@@ -19,7 +26,7 @@ export async function getOwners() {
   }))
 }
 
-// --- 2. Fetch Vessels (Table Data) ---
+// --- 2. Fetch Vessels (Table Data with Debt Calculation) ---
 export async function getVessels({
   search,
   status,
@@ -81,8 +88,9 @@ export async function getVessels({
       const berthFee = vessel.finance?.fee || 0
 
       // Attach the "Real" Total to the vessel object
-      vessel.calculatedTotalDue = berthFee + servicesTotal
-      vessel.unpaidServicesCount = vesselServices.length
+      // (We assign to 'calculatedTotalDue' which the frontend expects)
+      ;(vessel as any).calculatedTotalDue = berthFee + servicesTotal
+      ;(vessel as any).unpaidServicesCount = vesselServices.length
     })
   }
 
@@ -174,7 +182,7 @@ export async function processDeparture(vesselId: number) {
     // Default Rates if settings are missing
     const hourlyRate = settings?.hourlyRate || 50
     const dailyRate = settings?.dailyRate || 500
-    const taxPercentage = settings?.taxPercentage || 0
+    const taxPercent = settings?.taxPercentage !== undefined ? settings.taxPercentage : 6
 
     // 2. Find Active Berthing Session
     const berthRecords = await payload.find({
@@ -186,35 +194,69 @@ export async function processDeparture(vesselId: number) {
     })
 
     let berthingCost = 0
-    let currentSession = null
+    let quantity = 1
+    let unitPrice = 0
+    let description = 'Berthing Fee'
+    const currentSession = berthRecords.docs[0] || null
 
     // 3. Calculate Cost based on Duration & Plan Type
-    if (berthRecords.docs.length > 0) {
-      currentSession = berthRecords.docs[0]
+    if (currentSession) {
       const startTime = new Date(currentSession.startTime).getTime()
       const diffMs = Date.now() - startTime
-      const hoursParked = diffMs / (1000 * 60 * 60)
+      const hoursParked = Math.ceil(diffMs / (1000 * 60 * 60))
 
       if (vessel.registrationType === 'hourly') {
-        berthingCost = Math.ceil(hoursParked) * hourlyRate
+        berthingCost = hoursParked * hourlyRate
+        quantity = hoursParked
+        unitPrice = hourlyRate
+        description = `Hourly Berthing (${hoursParked} hrs)`
       } else if (vessel.registrationType === 'permanent') {
-        berthingCost = 0 // Permanent vessels pay monthly
+        berthingCost = 0 // Permanent vessels pay monthly subscription separately
+        description = 'Permanent Vessel Departure'
       } else {
         // Default to Temporary (Daily)
-        berthingCost = Math.ceil(hoursParked / 24) * dailyRate
+        const days = Math.ceil(hoursParked / 24)
+        berthingCost = days * dailyRate
+        quantity = days
+        unitPrice = dailyRate
+        description = `Daily Berthing (${days} days)`
       }
     } else {
-      // Fallback: If no active berth found but vessel is 'active' (rare edge case)
+      // Fallback: If no active berth found (Edge Case)
       if (vessel.registrationType === 'temporary') {
         berthingCost = dailyRate
+        unitPrice = dailyRate
+        description = 'Manual Departure Fee (No active record)'
       }
     }
 
-    // 4. Apply Tax (GST)
-    const tax = berthingCost * (taxPercentage / 100)
-    const finalBill = berthingCost + tax
+    // 4. Create the INVOICE Record (The Missing Link!)
+    if (berthingCost > 0) {
+      await payload.create({
+        collection: 'invoices',
+        data: {
+          invoiceNumber: generateInvoiceId(),
+          status: 'issued',
+          vessel: vesselId,
+          sourceType: 'berth',
+          relatedBerth: currentSession?.id,
+          lineItems: [
+            {
+              description: description,
+              quantity: quantity,
+              unitPrice: unitPrice,
+              // Note: Tax & Grand Total are auto-calculated by the Invoices.ts hook
+            },
+          ],
+        },
+      })
+    }
 
-    // 5. Close the Berthing Record (History)
+    // 5. Calculate Final Bill for Vessel Record (Visual/Quick Access)
+    const taxAmount = berthingCost * (taxPercent / 100)
+    const finalBill = berthingCost + taxAmount
+
+    // 6. Close the Berthing Record (History)
     if (currentSession) {
       await payload.update({
         collection: 'berths',
@@ -244,7 +286,7 @@ export async function processDeparture(vesselId: number) {
       })
     }
 
-    // 6. Free up the Slot
+    // 7. Free up the Slot
     if (vessel.currentBerth) {
       const slotId =
         typeof vessel.currentBerth === 'object' ? vessel.currentBerth.id : vessel.currentBerth
@@ -255,7 +297,7 @@ export async function processDeparture(vesselId: number) {
       })
     }
 
-    // 7. Update Vessel Status & Bill
+    // 8. Update Vessel Status & Bill
     await payload.update({
       collection: 'vessels',
       id: vesselId,
@@ -273,7 +315,7 @@ export async function processDeparture(vesselId: number) {
 
     return {
       success: true,
-      message: `Bill generated: MVR ${finalBill.toLocaleString()}`,
+      message: `Departure Processed. Invoice Generated: MVR ${finalBill.toLocaleString()}`,
     }
   } catch (error: any) {
     console.error('Departure Error', error)
@@ -308,7 +350,7 @@ export async function getAvailableBerths() {
   })
   return docs.map((slot: any) => ({
     id: slot.id,
-    label: `${slot.name} (${slot.size}ft) - ${slot.location}`,
+    label: `${slot.name} (${slot.zone}) - ${slot.type}`,
   }))
 }
 
@@ -320,6 +362,7 @@ export async function assignBerth(vesselId: number, slotId: string) {
     const vessel = await payload.findByID({ collection: 'vessels', id: vesselId })
 
     // Create Active Log
+    // (This triggers the 'afterChange' hook in Berths.ts to create an Upfront Invoice)
     await payload.create({
       collection: 'berths',
       data: {

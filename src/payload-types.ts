@@ -76,6 +76,7 @@ export interface Config {
     berths: Berth;
     'berthing-slots': BerthingSlot;
     'service-types': ServiceType;
+    invoices: Invoice;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -92,6 +93,7 @@ export interface Config {
     berths: BerthsSelect<false> | BerthsSelect<true>;
     'berthing-slots': BerthingSlotsSelect<false> | BerthingSlotsSelect<true>;
     'service-types': ServiceTypesSelect<false> | ServiceTypesSelect<true>;
+    invoices: InvoicesSelect<false> | InvoicesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -366,6 +368,34 @@ export interface Berth {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoices".
+ */
+export interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  status?: ('draft' | 'issued' | 'paid' | 'void') | null;
+  vessel: number | Vessel;
+  sourceType?: ('berth' | 'service' | 'manual') | null;
+  relatedBerth?: (number | null) | Berth;
+  relatedService?: (number | null) | Service;
+  lineItems?:
+    | {
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        total?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  subTotal?: number | null;
+  taxAmount?: number | null;
+  grandTotal?: number | null;
+  issueDate?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -423,6 +453,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'service-types';
         value: number | ServiceType;
+      } | null)
+    | ({
+        relationTo: 'invoices';
+        value: number | Invoice;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -649,6 +683,33 @@ export interface ServiceTypesSelect<T extends boolean = true> {
   name?: T;
   rate?: T;
   unit?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoices_select".
+ */
+export interface InvoicesSelect<T extends boolean = true> {
+  invoiceNumber?: T;
+  status?: T;
+  vessel?: T;
+  sourceType?: T;
+  relatedBerth?: T;
+  relatedService?: T;
+  lineItems?:
+    | T
+    | {
+        description?: T;
+        quantity?: T;
+        unitPrice?: T;
+        total?: T;
+        id?: T;
+      };
+  subTotal?: T;
+  taxAmount?: T;
+  grandTotal?: T;
+  issueDate?: T;
   updatedAt?: T;
   createdAt?: T;
 }

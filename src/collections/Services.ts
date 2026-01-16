@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { generateServiceInvoice } from '@/app/actions/billing' // Import the Server Action
 
 export const Services: CollectionConfig = {
   slug: 'services',
@@ -121,12 +122,11 @@ export const Services: CollectionConfig = {
     },
   ],
   hooks: {
+    // 1. CALCULATION HOOK (Runs before saving to ensure cost is correct)
     beforeChange: [
       async ({ data, req, operation }) => {
-        // Only run if service type is selected
         if (data.serviceType) {
           try {
-            // 1. Fetch the Rate from the Linked Service Type
             const serviceTypeId =
               typeof data.serviceType === 'object' ? data.serviceType.id : data.serviceType
 
@@ -136,49 +136,26 @@ export const Services: CollectionConfig = {
             })
 
             const rate = serviceDoc.rate || 0
-
-            // 2. Fetch Tax Percentage from Global Settings
-            // We use try/catch specifically for this fetch to ensure it doesn't crash
-            let taxPercent = 6 // DEFAULT FALLBACK
+            let taxPercent = 6
             try {
-              const settings = await req.payload.findGlobal({
-                slug: 'site-settings',
-              })
+              const settings = await req.payload.findGlobal({ slug: 'site-settings' })
               if (settings && typeof settings.taxPercentage === 'number') {
                 taxPercent = settings.taxPercentage
               }
-            } catch (err) {
-              console.warn('⚠️ Could not fetch Site Settings, using default 6% tax.')
-            }
-
-            // If Tax is 0, assume it's unset and force 6 (since your frontend shows 6%)
+            } catch (err) {}
             if (taxPercent === 0) taxPercent = 6
 
             const taxMultiplier = 1 + taxPercent / 100
 
-            // --- DEBUG LOGS (Check your Terminal!) ---
-            console.log(`\n🧮 CALCULATION DEBUG [${data.calculationMode}]`)
-            console.log(`Rate: ${rate} | Tax: ${taxPercent}% | Multiplier: ${taxMultiplier}`)
-            console.log(`Input -> Cost: ${data.totalCost}, Qty: ${data.quantity}`)
-
-            // 3. Perform Calculation
             if (rate > 0) {
               if (data.calculationMode === 'budget' && data.totalCost) {
-                // --- REVERSE MODE (Matches Frontend "By Budget") ---
-                // Logic: 100 MVR Total -> Remove Tax -> Divide by Rate
                 const subTotal = data.totalCost / taxMultiplier
                 const calculatedQty = subTotal / rate
-
                 data.quantity = parseFloat(calculatedQty.toFixed(2))
-                console.log(`✅ Calculated Qty: ${data.quantity}`)
               } else if (data.quantity) {
-                // --- STANDARD MODE (Matches Frontend "By Quantity") ---
-                // Logic: 5.8 L * Rate -> Add Tax -> Total MVR
                 const subTotal = data.quantity * rate
                 const costWithTax = subTotal * taxMultiplier
-
                 data.totalCost = parseFloat(costWithTax.toFixed(2))
-                console.log(`✅ Calculated Cost: ${data.totalCost}`)
               }
             }
           } catch (error) {
@@ -186,6 +163,20 @@ export const Services: CollectionConfig = {
           }
         }
         return data
+      },
+    ],
+    // 2. INVOICE GENERATION HOOK (Runs after saving)
+    afterChange: [
+      async ({ doc, previousDoc }) => {
+        // Trigger if status changes TO 'payment_pending'
+        if (doc.status === 'payment_pending' && previousDoc?.status !== 'payment_pending') {
+          try {
+            console.log(`🧾 Generating service invoice for ${doc.id}...`)
+            await generateServiceInvoice(doc.id)
+          } catch (err) {
+            console.error('❌ Service Invoice Generation Failed:', err)
+          }
+        }
       },
     ],
   },

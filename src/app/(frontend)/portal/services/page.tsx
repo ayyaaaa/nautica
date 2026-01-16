@@ -13,6 +13,7 @@ import {
 import { Plus, CreditCard, Clock, CheckCircle2, Wrench } from 'lucide-react'
 import Link from 'next/link'
 import { LiveRefresher } from '@/components/live-refresher'
+import { EditServiceDialog } from './edit-service-dialog' // <--- IMPORT THIS
 
 export default async function PortalServicesPage() {
   const { services } = await getMyServices()
@@ -57,19 +58,15 @@ export default async function PortalServicesPage() {
                 </TableRow>
               ) : (
                 services.map((s: any) => {
-                  // --- FIX STARTS HERE ---
-                  // Extract the name safely. If it's an object, get .name. If it's a string, use it.
+                  // Extract the name safely
                   const serviceName =
                     typeof s.serviceType === 'object' ? s.serviceType.name : s.serviceType
-                  // --- FIX ENDS HERE ---
 
                   return (
                     <TableRow key={s.id}>
                       <TableCell className="font-medium capitalize">
                         <div className="flex items-center gap-2">
                           <Wrench className="h-4 w-4 text-muted-foreground" />
-
-                          {/* USE THE VARIABLE HERE */}
                           {serviceName}
                         </div>
                         <span className="text-xs text-muted-foreground ml-6 block mt-1">
@@ -77,7 +74,6 @@ export default async function PortalServicesPage() {
                         </span>
                       </TableCell>
 
-                      {/* Safe check for vessel name as well */}
                       <TableCell>
                         {typeof s.vessel === 'object' ? s.vessel.name : s.vessel || 'Unknown'}
                       </TableCell>
@@ -86,29 +82,42 @@ export default async function PortalServicesPage() {
                         <StatusBadge status={s.status} />
                       </TableCell>
                       <TableCell>MVR {s.totalCost?.toLocaleString()}</TableCell>
+                      
+                      {/* --- UPDATED ACTION COLUMN --- */}
                       <TableCell className="text-right">
-                        {s.status === 'payment_pending' && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="bg-blue-600 hover:bg-blue-700"
-                            asChild
-                          >
-                            <Link href={`/portal/services/pay-service/${s.id}`}>
-                              <CreditCard className="mr-2 h-3 w-3" /> Pay Now
-                            </Link>
-                          </Button>
-                        )}
-                        {s.status === 'in_progress' && (
-                          <span className="text-xs text-blue-600 font-medium flex items-center justify-end">
-                            <Clock className="w-3 h-3 mr-1 animate-pulse" /> In Progress
-                          </span>
-                        )}
-                        {s.status === 'completed' && (
-                          <span className="text-xs text-green-600 font-medium flex items-center justify-end">
-                            <CheckCircle2 className="w-3 h-3 mr-1" /> Done
-                          </span>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          
+                          {/* 1. EDIT BUTTON (Only if status is 'requested') */}
+                          {s.status === 'requested' && (
+                            <EditServiceDialog service={s} />
+                          )}
+
+                          {/* 2. PAY BUTTON (Only if status is 'payment_pending') */}
+                          {s.status === 'payment_pending' && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-blue-600 hover:bg-blue-700 h-8"
+                              asChild
+                            >
+                              <Link href={`/portal/services/pay-service/${s.id}`}>
+                                <CreditCard className="mr-2 h-3 w-3" /> Pay Now
+                              </Link>
+                            </Button>
+                          )}
+
+                          {/* 3. STATUS ICONS */}
+                          {s.status === 'in_progress' && (
+                            <span className="text-xs text-blue-600 font-medium flex items-center">
+                              <Clock className="w-3 h-3 mr-1 animate-pulse" /> In Progress
+                            </span>
+                          )}
+                          {s.status === 'completed' && (
+                            <span className="text-xs text-green-600 font-medium flex items-center">
+                              <CheckCircle2 className="w-3 h-3 mr-1" /> Done
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

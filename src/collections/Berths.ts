@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { generateBerthInvoice } from '@/app/actions/billing' // Import the Server Action
 
 export const Berths: CollectionConfig = {
   slug: 'berths',
@@ -6,6 +7,22 @@ export const Berths: CollectionConfig = {
   admin: {
     useAsTitle: 'id', // Will customize later
     defaultColumns: ['vessel', 'planType', 'status', 'startTime'],
+  },
+  // --- AUTOMATION HOOKS ---
+  hooks: {
+    afterChange: [
+      async ({ doc, operation }) => {
+        // Trigger Invoice ONLY when a new Berth Record is created (Upfront billing)
+        if (operation === 'create') {
+          try {
+            console.log(`🧾 Creating upfront invoice for Berth ${doc.id}...`)
+            await generateBerthInvoice(doc.id)
+          } catch (err) {
+            console.error('❌ Berth Invoice Generation Failed:', err)
+          }
+        }
+      },
+    ],
   },
   fields: [
     {

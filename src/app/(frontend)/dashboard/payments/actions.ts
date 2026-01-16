@@ -42,7 +42,7 @@ export async function getAllTransactions() {
   return history
 }
 
-// --- 2. MARK AS PAID ---
+// --- 2. MARK AS PAID (FIXED STATUS UPDATE) ---
 export async function markAsPaid(
   id: string | number,
   type: 'vessel' | 'service',
@@ -76,13 +76,10 @@ export async function markAsPaid(
       }
     }
 
-    // Variables for the Log
     let paidAmount = 0
     let vesselId: number | null = null
-    // FIX: Allow serviceId to be number
     let serviceId: number | null = null
     let description = ''
-
     const invoiceNum = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`
 
     // --- A. Process Vessel Payment ---
@@ -90,30 +87,8 @@ export async function markAsPaid(
       const vessel = await payload.findByID({ collection: 'vessels', id: id as number })
       paidAmount = vessel.finance?.fee || 0
       vesselId = vessel.id
-      description =
-        vessel.registrationType === 'permanent' ? 'Permit Renewal' : 'Departure Settlement'
+      description = vessel.registrationType === 'permanent' ? 'Permit Renewal' : 'Departure Settlement'
 
-      // Mark linked services as paid
-      const unpaidServices = await payload.find({
-        collection: 'services',
-        where: {
-          and: [
-            { vessel: { equals: id } },
-            { status: { equals: 'completed' } },
-            { paymentStatus: { equals: 'unpaid' } },
-          ],
-        },
-      })
-
-      if (unpaidServices.docs.length > 0) {
-        await Promise.all(
-          unpaidServices.docs.map((s) =>
-            payload.update({ collection: 'services', id: s.id, data: { paymentStatus: 'paid' } }),
-          ),
-        )
-      }
-
-      // Reset Vessel Balance
       const updates: any = {
         status: vessel.registrationType === 'permanent' ? 'active' : 'departed',
         finance: {
@@ -132,8 +107,7 @@ export async function markAsPaid(
       } else {
         updates.currentBerth = null
         if (vessel.currentBerth) {
-          const slotId =
-            typeof vessel.currentBerth === 'object' ? vessel.currentBerth.id : vessel.currentBerth
+          const slotId = typeof vessel.currentBerth === 'object' ? vessel.currentBerth.id : vessel.currentBerth
           await payload.update({
             collection: 'berthing-slots',
             id: slotId,
@@ -144,29 +118,75 @@ export async function markAsPaid(
 
       await payload.update({ collection: 'vessels', id: id as number, data: updates })
 
-      // --- B. Process Service Payment ---
+      // Sync Invoice
+      const { docs: vesselInvoices } = await payload.find({
+        collection: 'invoices',
+        where: {
+          and: [
+            { vessel: { equals: vesselId } },
+            { status: { equals: 'issued' } },
+            { sourceType: { equals: 'berth' } }
+          ]
+        },
+        limit: 1
+      })
+      
+      if (vesselInvoices.length > 0) {
+        await payload.update({
+          collection: 'invoices',
+          id: vesselInvoices[0].id,
+          data: { status: 'paid' }
+        })
+      }
+
+    // --- B. Process Service Payment (FIXED HERE) ---
     } else {
-      // FIX: Cast id to number (assuming SQL DB)
       const service = await payload.findByID({ collection: 'services', id: id as number })
 
       paidAmount = service.totalCost || 0
       serviceId = service.id
-      description = `${service.serviceType} (${service.quantity})`
+      description = typeof service.serviceType === 'object' 
+        ? `${service.serviceType.name} (${service.quantity})`
+        : `Service #${service.id}`
+        
       vesselId = typeof service.vessel === 'object' ? service.vessel.id : service.vessel
 
+      // ✅ FIX: Update BOTH statuses so it leaves the "Pending" list
       await payload.update({
         collection: 'services',
         id: id as number,
-        data: { paymentStatus: 'paid' },
+        data: { 
+          paymentStatus: 'paid',
+          status: 'in_progress' // <--- This moves it out of 'payment_pending'
+        },
       })
+
+      // Sync Invoice
+      const { docs: serviceInvoices } = await payload.find({
+        collection: 'invoices',
+        where: {
+          or: [
+            { relatedService: { equals: serviceId } },
+            { relatedService: { equals: String(serviceId) } }
+          ]
+        },
+        limit: 1
+      })
+      
+      if (serviceInvoices.length > 0) {
+        await payload.update({
+          collection: 'invoices',
+          id: serviceInvoices[0].id,
+          data: { status: 'paid' }
+        })
+      }
     }
 
-    // --- C. CREATE THE PERMANENT LOG ENTRY ---
+    // --- C. Create Receipt Log ---
     await payload.create({
       collection: 'payments',
       data: {
         invoiceNumber: invoiceNum,
-        // FIX: Cast relationships to 'any' to bypass Strict TS Mismatch
         vessel: vesselId as any,
         description: description,
         amount: paidAmount,
@@ -178,8 +198,10 @@ export async function markAsPaid(
       },
     })
 
+    // Refresh everything
     revalidatePath('/dashboard/payments')
     revalidatePath('/dashboard/vessels')
+    revalidatePath('/dashboard/invoices')
     return { success: true }
   } catch (error) {
     console.error('Payment Error:', error)
@@ -187,11 +209,12 @@ export async function markAsPaid(
   }
 }
 
-// --- 3. GET PENDING (Standard) ---
+// --- 3. GET PENDING ---
 export async function getPendingPayments() {
   const payload = await getPayload({ config: configPromise })
   const invoices: InvoiceItem[] = []
 
+  // 1. Get Pending Vessels
   const { docs: vessels } = await payload.find({
     collection: 'vessels',
     where: { status: { equals: 'payment_pending' } },
@@ -210,21 +233,23 @@ export async function getPendingPayments() {
     })
   })
 
+  // 2. Get Pending Services
   const { docs: services } = await payload.find({
     collection: 'services',
     where: {
-      and: [{ status: { equals: 'completed' } }, { paymentStatus: { equals: 'unpaid' } }],
+       status: { equals: 'payment_pending' }
     },
     depth: 1,
     limit: 100,
   })
 
   services.forEach((s: any) => {
+    const sName = typeof s.serviceType === 'object' ? s.serviceType.name : 'Service'
     invoices.push({
       id: s.id,
       type: 'service',
-      reference: s.vessel?.name || 'Unknown',
-      description: `${s.serviceType} (${s.quantity})`,
+      reference: typeof s.vessel === 'object' ? s.vessel.name : 'Unknown',
+      description: `${sName} (${s.quantity})`,
       amount: s.totalCost || 0,
       status: 'unpaid',
       date: s.requestDate,
