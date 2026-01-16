@@ -33,7 +33,7 @@ export async function getMyServices() {
     where: {
       or: [{ 'owner.id': { equals: user.id } }, { 'operator.id': { equals: user.id } }],
     },
-    depth: 1, 
+    depth: 1,
   })
 
   const vesselIds = vessels.map((v) => v.id)
@@ -139,88 +139,81 @@ export async function getServiceDetails(id: string) {
 
 // --- 5. Process Payment (UPDATED & FIXED) ---
 // --- 5. Process Payment (FIXED ID MATCHING) ---
-export async function processServicePayment(serviceId: string | number, method: 'cash' | 'transfer' = 'cash') {
+export async function processServicePayment(
+  serviceId: string | number,
+  method: 'cash' | 'transfer' = 'cash',
+) {
   const payload = await getPayload({ config: configPromise })
-  
-  // Ensure ID is a number if your database uses numeric IDs
-  const numericServiceId = Number(serviceId)
 
-  console.log(`💰 Processing Payment for Service: ${numericServiceId} (${method})`)
+  const numericServiceId = Number(serviceId)
+  const stringServiceId = String(serviceId)
+
+  console.log(`\n🔴 --- PAYMENT DEBUG START ---`)
+  console.log(`👉 Input Service ID: ${serviceId} (Type: ${typeof serviceId})`)
 
   try {
-    // A. Update the Service Status
-    await payload.update({
+    // 1. Update Service Status
+    const service = await payload.update({
       collection: 'services',
-      id: numericServiceId, // Pass ID as number
-      data: {
-        status: 'in_progress',
-        paymentStatus: 'paid',
-      } as any,
+      id: numericServiceId,
+      data: { status: 'in_progress', paymentStatus: 'paid' } as any,
     })
+    console.log(`✅ Service Updated: ${service.id}`)
 
-    // B. Find the Linked Invoice
-    // We try querying with BOTH the number and string format to be 100% safe
+    // 2. Search for Invoice
     const { docs: invoices } = await payload.find({
       collection: 'invoices',
       where: {
         or: [
-          { relatedService: { equals: numericServiceId } }, // Try Number
-          { relatedService: { equals: String(serviceId) } } // Try String
-        ]
+          { relatedService: { equals: numericServiceId } },
+          { relatedService: { equals: stringServiceId } },
+        ],
       },
       limit: 1,
     })
 
-    console.log(`🔍 Found ${invoices.length} invoices for this service.`)
-
-    // C. Update Invoice & Create Receipt
     if (invoices.length > 0) {
       const invoice = invoices[0]
+      console.log(`👉 Updating Invoice: ${invoice.id}`)
 
-      // 1. Mark Invoice as Paid
+      // 3. Update Invoice
       await payload.update({
         collection: 'invoices',
         id: invoice.id,
+        data: { status: 'paid' },
+      })
+
+      // 4. Create Receipt
+      await payload.create({
+        collection: 'payments',
         data: {
+          invoiceNumber: invoice.invoiceNumber,
+          vessel: typeof invoice.vessel === 'object' ? invoice.vessel.id : invoice.vessel,
+
+          // ✅ FIX: Add fallback to 0 to prevent "null" type error
+          amount: invoice.grandTotal || 0,
+
           status: 'paid',
+          method: method,
+          paidAt: new Date().toISOString(),
+          description: `Payment for Service Req #${numericServiceId}`,
+          relatedService: numericServiceId,
         },
       })
-      console.log(`✅ Invoice ${invoice.invoiceNumber} marked as PAID.`)
-
-      // 2. Create Payment Record (Audit Log)
-      try {
-        await payload.create({
-          collection: 'payments',
-          data: {
-            invoiceNumber: invoice.invoiceNumber,
-            vessel: typeof invoice.vessel === 'object' ? invoice.vessel.id : invoice.vessel,
-            amount: invoice.grandTotal,
-            status: 'paid',
-            method: method,
-            paidAt: new Date().toISOString(),
-            description: `Payment for Service Req #${numericServiceId}`,
-            relatedService: numericServiceId,
-          },
-        })
-      } catch (err) {
-        console.error('⚠️ Could not create payment receipt:', err)
-      }
+      console.log(`✅ Payment Receipt Created.`)
     } else {
-      console.warn('⚠️ Service marked Paid, but NO INVOICE found to update.')
+      console.error(`❌ CRITICAL: No invoice found for Service ${serviceId}.`)
     }
 
-    // D. Refresh Data
+    // Refresh UI
     revalidatePath('/portal/services')
-    revalidatePath(`/portal/services/pay-service/${serviceId}`)
-    
-    // Also refresh Admin Dashboard so you see it there immediately
-    revalidatePath('/dashboard/invoices') 
-    revalidatePath('/dashboard/services')
+    revalidatePath('/dashboard/invoices')
 
+    console.log(`🔴 --- PAYMENT DEBUG END ---\n`)
     return { success: true }
-  } catch (e) {
-    console.error('❌ Payment Error:', e)
-    return { success: false, error: 'Payment processing failed' }
+  } catch (e: any) {
+    console.error('❌ PAYMENT FAILED:', e)
+    return { success: false, error: e.message }
   }
 }
 
@@ -243,7 +236,7 @@ export async function updateServiceRequest(serviceId: string, formData: FormData
     const service = await payload.findByID({
       collection: 'services',
       id: serviceId,
-      depth: 1
+      depth: 1,
     })
 
     // Security: Ensure User Owns the Vessel
