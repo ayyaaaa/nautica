@@ -93,14 +93,25 @@ export async function countVotes(electionId: string | number): Promise<ElectionR
 export async function getAllElectionResults(): Promise<ElectionResults[]> {
   const payload = await getPayload({ config: configPromise })
 
-  const elections = await payload.find({
-    collection: 'elections',
-    limit: 100,
-    sort: '-createdAt',
-  })
+  const allElections: { id: string | number }[] = []
+  let page = 1
+  let hasMore = true
+
+  while (hasMore) {
+    const result = await payload.find({
+      collection: 'elections',
+      limit: 100,
+      page,
+      sort: '-createdAt',
+    })
+
+    allElections.push(...result.docs)
+    hasMore = result.hasNextPage
+    page++
+  }
 
   const results: ElectionResults[] = []
-  for (const election of elections.docs) {
+  for (const election of allElections) {
     const result = await countVotes(election.id)
     results.push(result)
   }
