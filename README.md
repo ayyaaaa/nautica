@@ -62,6 +62,118 @@ Alternatively, you can use [Docker](https://www.docker.com) to spin up this temp
 
 That's it! The Docker instance will help you get up and running quickly while also standardizing the development environment across your teams.
 
+## Elections & Vote Counting
+
+The system includes an elections module that allows administrators to create elections and for users to cast votes.
+
+### How Votes Are Counted
+
+Votes are counted using **simple plurality (first-past-the-post)**:
+
+1. Each authenticated user can cast **exactly one vote per election** (enforced by a unique compound index on `election` + `voter`).
+2. Votes can only be cast while an election's status is **"active"**.
+3. The selected candidate must match one of the candidates defined in the election.
+4. When vote results are displayed on the `/elections` page, all votes for the election are fetched from the `votes` collection and grouped by the `candidate` field.
+5. The count of votes per candidate is calculated and sorted in descending order (most votes first).
+6. The candidate with the highest vote count is the winner.
+
+The vote counting logic is implemented in `src/app/actions/elections.ts` via the `countVotes()` server action.
+
+### How to Change Vote Data at the Database Level
+
+Since this project uses **PostgreSQL** via Payload CMS, vote data can be modified directly using SQL queries.
+
+#### View all votes for an election
+
+```sql
+SELECT v.id, v.candidate, v.voter, v.voted_at
+FROM votes v
+WHERE v.election = <election_id>
+ORDER BY v.voted_at;
+```
+
+#### Update a specific vote's candidate selection
+
+```sql
+UPDATE votes
+SET candidate = 'New Candidate Name'
+WHERE id = <vote_id>;
+```
+
+#### Delete a specific vote
+
+```sql
+DELETE FROM votes WHERE id = <vote_id>;
+```
+
+#### Insert a new vote directly
+
+```sql
+INSERT INTO votes (election, voter, candidate, voted_at, created_at, updated_at)
+VALUES (<election_id>, <user_id>, 'Candidate Name', NOW(), NOW(), NOW());
+```
+
+#### Count votes per candidate for an election
+
+```sql
+SELECT candidate, COUNT(*) as vote_count
+FROM votes
+WHERE election = <election_id>
+GROUP BY candidate
+ORDER BY vote_count DESC;
+```
+
+#### Using the Payload CMS API (programmatic access)
+
+You can also modify vote data using the Payload Local API (e.g., in scripts or server actions):
+
+```typescript
+import { getPayload } from 'payload'
+import config from './src/payload.config'
+
+const payload = await getPayload({ config })
+
+// Find all votes for an election
+const votes = await payload.find({
+  collection: 'votes',
+  where: { election: { equals: electionId } },
+  overrideAccess: true,
+})
+
+// Update a vote
+await payload.update({
+  collection: 'votes',
+  id: voteId,
+  data: { candidate: 'New Candidate Name' },
+  overrideAccess: true,
+})
+
+// Delete a vote
+await payload.delete({
+  collection: 'votes',
+  id: voteId,
+  overrideAccess: true,
+})
+
+// Create a vote
+await payload.create({
+  collection: 'votes',
+  data: {
+    election: electionId,
+    voter: userId,
+    candidate: 'Candidate Name',
+  },
+  overrideAccess: true,
+})
+```
+
+> **Note:** When using `overrideAccess: true`, all access control checks are bypassed, allowing administrators to directly manipulate vote data regardless of the configured access rules.
+
+### Collections
+
+- **Elections** (`elections`): Election definitions with title, description, status (draft/active/closed), start/end dates, and candidate list.
+- **Votes** (`votes`): Individual vote records linking an election, voter (user), and selected candidate.
+
 ## Questions
 
 If you have any issues or questions, reach out to us on [Discord](https://discord.com/invite/payload) or start a [GitHub discussion](https://github.com/payloadcms/payload/discussions).
